@@ -1,0 +1,68 @@
+["s72-v1",
+{
+	"type":"MESH",
+	"name":"Metal",
+	"topology":"TRIANGLE_LIST",
+	"count":19656,
+	"attributes":{
+		"POSITION":{ "src":"MetalInBowl.Metal.pnc.b72", "offset":0, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"NORMAL":{ "src":"MetalInBowl.Metal.pnc.b72", "offset":12, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"COLOR":{ "src":"MetalInBowl.Metal.pnc.b72", "offset":24, "stride":28, "format":"R8G8B8A8_UNORM" }
+	}
+},
+{
+	"type":"NODE",
+	"name":"Metal",
+	"translation":[0.0227985,-0.00620281,-0.646406],
+	"rotation":[0,0,0,1],
+	"scale":[0.282673,0.282673,0.282673],
+	"mesh":1,
+	"material":6
+},
+{
+	"type":"MESH",
+	"name":"Bowl",
+	"topology":"TRIANGLE_LIST",
+	"count":7215,
+	"attributes":{
+		"POSITION":{ "src":"MetalInBowl.Bowl.pnc.b72", "offset":0, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"NORMAL":{ "src":"MetalInBowl.Bowl.pnc.b72", "offset":12, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"COLOR":{ "src":"MetalInBowl.Bowl.pnc.b72", "offset":24, "stride":28, "format":"R8G8B8A8_UNORM" }
+	}
+},
+{
+	"type":"NODE",
+	"name":"Bowl",
+	"translation":[-0.0545599,0.0513487,-0.0367615],
+	"rotation":[0,0,0,1],
+	"scale":[1.48045,1.48045,1.48045],
+	"mesh":3,
+	"children":[2],
+	"material":7
+},
+{
+	"type":"SCENE",
+	"name":"C:/Users/Owner/Downloads/s72-main/s72-main/exporters/blender/MetalInBowl.blend",
+	"roots":[4]
+},
+{
+	"type":"MATERIAL",
+	"name":"metal material",
+	"normalMap": { "src":"Textures\Baked_Normals_Metal.png"},
+	"pbr": {
+		"albedo": { "src":"Textures\Baked_Textures_Metal.png"}
+		"roughness": { "src":"Textures\Baked_Textures_Metal.png"}
+		"metalness": { "src":"Textures\Baked_Textures_Metal.png"}
+	},
+},
+{
+	"type":"MATERIAL",
+	"name":"bowl material",
+	"normalMap": { "src":"Textures\Baked_Normals_Bowl.png"},
+	"pbr": {
+		"albedo": { "src":"Textures\Texture_Bowl.png"}
+		"roughness": 0,
+		"metalness": 0,
+	},
+}
+]

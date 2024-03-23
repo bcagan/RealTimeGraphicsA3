@@ -1,0 +1,17 @@
+
+*.vsidx
+cube/.vs/cube/v17/.suo
+*.db
+*.ipch
+*.sln
+*.vcxproj
+*.user
+*.filters
+*.recipe
+*.ilk
+*.obj
+*.log
+*.tlog
+*.idb
+*.pdb
+*.iobj

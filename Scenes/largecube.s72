@@ -1,0 +1,44 @@
+["s72-v1",
+{
+	"type":"MESH",
+	"name":"Cube",
+	"topology":"TRIANGLE_LIST",
+	"count":9216,
+	"attributes":{
+		"POSITION":{ "src":"largecube.Cube.b72", "offset":0, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"NORMAL":{ "src":"largecube.Cube.b72", "offset":12, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"COLOR":{ "src":"largecube.Cube.b72", "offset":24, "stride":28, "format":"R8G8B8A8_UNORM" }
+	}
+},
+{
+	"type":"NODE",
+	"name":"Cube",
+	"translation":[0,0,0],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"mesh":1
+},
+{
+	"type":"CAMERA",
+	"name":"Camera",
+	"perspective":{
+		"aspect":1.77778,
+		"vfov":0.47109,
+		"near":0.1,
+		"far":100
+	}
+},
+{
+	"type":"NODE",
+	"name":"Camera",
+	"translation":[7.35889,-6.92579,4.95831],
+	"rotation":[0.483536,0.208704,0.336872,0.780483],
+	"scale":[1,1,1],
+	"camera":3
+},
+{
+	"type":"SCENE",
+	"name":"c:\\Users\\Owner\\Downloads\\s72-main\\s72-main\\exporters\\blender\\largecube.blend",
+	"roots":[2, 4]
+}
+]
