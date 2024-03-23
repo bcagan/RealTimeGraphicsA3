@@ -1,3 +1,5 @@
+#include "platform.h"
+#ifdef PLATFORM_LIN
 #include "WindowManager_lin.h"
 #include "iostream"
 #include "Main.h"
@@ -287,3 +289,4 @@ ProgramMode* MainProgram::getCurrentMode() {
 
 	return this->currentMode;
 }
+#endif

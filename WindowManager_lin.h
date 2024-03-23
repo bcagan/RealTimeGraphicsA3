@@ -6,6 +6,8 @@
 #include "string"
 #include "Main.h"
 #include <iostream>
+#include "platform.h"
+#ifdef PLATFOMR_LIN
 
 #include <X11/xlib.h>
 #include <assert.h>
@@ -100,3 +102,4 @@ private:
 
 
 
+#endif

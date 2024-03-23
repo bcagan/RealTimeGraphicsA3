@@ -1,3 +1,5 @@
+#include "platform.h"
+#ifdef PLATFOMR_LIN
 #include "WindowManager_lin.h"
 #include "string"
 #include <map>
@@ -37,3 +39,4 @@ MasterWindow* WindowManager::getWindowClass_Master(int classId) {
 }
 
 
+#endif
