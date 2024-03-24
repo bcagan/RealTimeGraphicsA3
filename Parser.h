@@ -59,6 +59,7 @@ private:
 
 	//Specific object type parsing functions
 	Camera parseCamera(std::vector<std::string> jsonObject);
+	Light parseLight(std::vector<std::string> jsonObject);
 	GraphNode parseNode(std::vector<std::string> jsonObject);
 	SceneDriver parseDriver(std::vector<std::string> jsonObject);
 	MaterialInt parseMaterial(std::vector<std::string> jsonObject);
@@ -252,6 +253,9 @@ GraphNode Parser::parseNode(std::vector<std::string> jsonObject) {
 	nameString = parseName(nameString);
 	GraphNode parsedNode;
 	parsedNode.name = nameString;
+	parsedNode.translate = vec3<float>(0, 0, 0);
+	parsedNode.scale = vec3<float>(1, 1, 1);
+	parsedNode.rotation = quaternion<float>::angleAxis(0, float_3(0, 0, 1));
 	//Noting that the propertie strings are varying lenght but,
 	//have a unique starting 2 chars, case on that
 	for (size_t strInd = 2; strInd < jsonObject.size(); strInd++) {
@@ -260,9 +264,6 @@ GraphNode Parser::parseNode(std::vector<std::string> jsonObject) {
 			objectString = objectString.substr(0, objectString.size() - 1);
 		}
 		size_t objLen = objectString.size();
-		parsedNode.translate = vec3<float>(0, 0, 0);
-		parsedNode.scale = vec3<float>(1, 1, 1);
-		parsedNode.rotation = quaternion<float>::angleAxis(0,float_3(0,0,1));
 		//Translation
 		if (!objectString.substr(1, 2).compare("tr")) {
 			std::string arrayString = objectString.substr(14, objLen - 14);
@@ -271,7 +272,6 @@ GraphNode Parser::parseNode(std::vector<std::string> jsonObject) {
 				throw std::runtime_error("ERROR: Invalid translation array found in node when parsing json file in Parser.");
 			}
 			parsedNode.translate = float_3(trArr[0], trArr[1], trArr[2]);
-
 		}
 		//Rotation
 		else if(!objectString.substr(1, 2).compare("ro")) {
@@ -302,6 +302,10 @@ GraphNode Parser::parseNode(std::vector<std::string> jsonObject) {
 		//Camera, optional
 		else if (!objectString.substr(1, 2).compare("ca")) {
 			parsedNode.camera = atoi(objectString.substr(9, objLen - 9).c_str());
+		}
+		//Light, optional
+		else if (!objectString.substr(1, 2).compare("li")) {
+			parsedNode.light = atoi(objectString.substr(8, objLen - 8).c_str());
 		}
 		//Environment, optional
 		else if (!objectString.substr(1, 2).compare("en")) {
@@ -338,6 +342,84 @@ Camera Parser::parseCamera(std::vector<std::string> jsonObject) {
 	parsedCamera.perspective.nearP = nearVal;
 	parsedCamera.perspective.farP = farVal;
 	return parsedCamera;
+}
+
+Light Parser::parseLight(std::vector<std::string> jsonObject) {
+	std::string nameString = jsonObject[1];
+	nameString = parseName(nameString);
+	Light parsedLight;
+	parsedLight.shadowRes = 0;
+	//parsedLight.name = nameString;
+	parsedLight.type = LIGHT_NONE;
+
+	for (size_t i = 1; i < jsonObject.size(); i++) {
+		std::string jsonString = jsonObject[i];
+		size_t strSize = jsonString.size();
+		if (strSize < 4) {
+			throw std::runtime_error("ERROR: Invalid string found in light object in Parser.");
+		}
+		char json1 = jsonString.at(1); 
+		char json2 = jsonString.at(2);
+		char json3 = jsonString.at(3);
+		if (json1 == 't' && json2 == 'i') {
+			std::vector<float> tintVec = parseArrayStringF(jsonString.substr(7, strSize - 8));
+			if (tintVec.size() != 3) {
+				throw std::runtime_error("ERROR: Incorrect format for light tint found in Parser.");
+			}
+			else{
+				float_3 tint; 
+				tint.x = tintVec[0]; tint.y = tintVec[1]; tint.z = tintVec[2];
+				parsedLight.tint = tint;
+			}
+		}
+		else if (json1 == 's' && json2 == 'u') {
+			parsedLight.type = LIGHT_SUN;
+			std::string angleStr = jsonObject[i + 1];
+			std::string strengthStr = jsonObject[i + 2];
+			size_t angleSize = angleStr.size();
+			size_t streSize = strengthStr.size();
+			parsedLight.angle = atof(angleStr.substr(8, angleSize - 8).c_str());
+			parsedLight.strength = atof(strengthStr.substr(11, streSize - 11).c_str());
+			i += 3;
+		}
+		else if (json1 == 's' && json2 == 'p' && json3 == 'h') {
+			parsedLight.type = LIGHT_SPHERE;
+			std::string radiusStr = jsonObject[i + 1];
+			std::string powerStr = jsonObject[i + 2];
+			std::string limitStr = jsonObject[i + 3];
+			size_t radiusSize = radiusStr.size();
+			size_t powerSize = powerStr.size();
+			size_t limSize = limitStr.size();
+			parsedLight.radius = atof(radiusStr.substr(8, radiusSize - 9).c_str());
+			parsedLight.power = atof(powerStr.substr(8, powerSize - 8).c_str());
+			parsedLight.limit = atof(limitStr.substr(8, limSize - 8).c_str());
+			i += 4;
+		}
+		else if (json1 == 's' && json2 == 'p' && json3 == 'o') {
+			parsedLight.type = LIGHT_SPOT;
+			std::string radiusStr = jsonObject[i + 1];
+			std::string powerStr = jsonObject[i + 2];
+			std::string fovStr = jsonObject[i + 3];
+			std::string blendStr = jsonObject[i + 4];
+			std::string limitStr = jsonObject[i + 5];
+			size_t radiusSize = radiusStr.size();
+			size_t powerSize = powerStr.size();
+			size_t fovSize = fovStr.size();
+			size_t blendize = blendStr.size();
+			size_t limSize = limitStr.size();
+			parsedLight.radius = atof(radiusStr.substr(8, radiusSize - 9).c_str());
+			parsedLight.power = atof(powerStr.substr(8, powerSize - 8).c_str());
+			parsedLight.fov = atof(fovStr.substr(6, fovSize - 6).c_str());
+			parsedLight.blend = atof(blendStr.substr(8, blendize - 8).c_str());
+			parsedLight.limit = atof(limitStr.substr(8, limSize - 8).c_str());
+			i += 6;
+		}
+		else if (json1 == 's' && json2 == 'h') {
+			parsedLight.shadowRes = atoi(jsonString.substr(9, strSize - 9).c_str());
+		}
+	}
+
+	return parsedLight;
 }
 
 //Parses a string consisting of an array of integers denoted by [...] into 
@@ -595,6 +677,15 @@ std::vector<std::vector<std::string>> Parser::parseToObjects(std::vector<char> r
 				if (parsedStrings[end].size() > 10 && !parsedStrings[end].substr(1, 10).compare("attributes")) {
 					depthCounter++;
 				}
+				else if (parsedStrings[end].size() > 3 && !parsedStrings[end].substr(1, 3).compare("sun")) {
+					depthCounter++;
+				}
+				else if (parsedStrings[end].size() > 4 && !parsedStrings[end].substr(1, 4).compare("spot")) {
+					depthCounter++;
+				}
+				else if (parsedStrings[end].size() > 6 && !parsedStrings[end].substr(1, 6).compare("sphere")) {
+					depthCounter++;
+				}
 				if (depthCounter > 0 && parsedStrings[end].at(0) == '}') depthCounter--;
 			}
 			//{ - line
@@ -625,6 +716,7 @@ SceneGraph Parser::parseJson(std::string fileName, bool verbose) {
 	std::map<int, int> jsonIdToMeshId;
 	std::map<int, int> jsonIdToMaterialId;
 	std::map<int, int> jsonIdToCameraId;
+	std::map<int, int> jsonIdToLightId;
 
 	//Parsed into json objects, handle each object in order
 	for (std::vector<std::string> jsonObject : objects) {
@@ -702,6 +794,12 @@ SceneGraph Parser::parseJson(std::string fileName, bool verbose) {
 			Camera parsedCamera = parseCamera(jsonObject);
 			jsonIdToCameraId[id] = parsedGraph.cameras.size();
 			parsedGraph.cameras.push_back(parsedCamera);
+		}
+		//Use camera helper function to parse camera object
+		else if (!typeString.compare("LIGHT")) {
+			Light parsedLight = parseLight(jsonObject);
+			jsonIdToLightId[id] = parsedGraph.lights.size();
+			parsedGraph.lights.push_back(parsedLight);
 		}
 		//Use driver helper function to parse driver object
 		else if (!typeString.compare("DRIVER")) {
@@ -824,13 +922,21 @@ SceneGraph Parser::parseJson(std::string fileName, bool verbose) {
 			}
 			node.mesh = mapppedMesh->second;
 		}
-		
+
 		if (node.camera.has_value()) {
 			std::map<int, int>::iterator mappedCamera = jsonIdToCameraId.find(*node.camera);
 			if (mappedCamera == jsonIdToCameraId.end()) {
 				throw std::runtime_error("ERROR: Unable to find camera id for camera in Parser.");
 			}
 			node.camera = mappedCamera->second;
+		}
+
+		if (node.light.has_value()) {
+			std::map<int, int>::iterator mappedLight = jsonIdToLightId.find(*node.light);
+			if (mappedLight == jsonIdToLightId.end()) {
+				throw std::runtime_error("ERROR: Unable to find camera id for light in Parser.");
+			}
+			node.light = mappedLight->second;
 		}
 		std::vector<int> newChildren = std::vector<int>();
 		for (size_t child = 0; child < node.children.size(); child++) {

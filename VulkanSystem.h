@@ -86,7 +86,8 @@ public:
 	std::vector<std::vector<mat44<float>>> transformEnvironmentInstPools;
 	std::vector<std::vector<mat44<float>>> transformEnvironmentInstPoolsStore;
 	std::vector<int> transformInstIndexPools;
-	//Materials
+	//Materials and Lights
+	std::vector<Light> lightPool;
 	std::optional<Texture> rawEnvironment;
 	Texture LUT;
 	std::vector<std::vector<DrawMaterial>> materialPools;
@@ -240,6 +241,10 @@ private:
 	std::vector< std::vector<VkBuffer>> uniformBuffersCamerasPools;
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryCamerasPools;
 	std::vector< std::vector<void*>> uniformBuffersMappedCamerasPools;
+
+	std::vector< std::vector<VkBuffer>> uniformBuffersLightsPools;
+	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryLightsPools;
+	std::vector< std::vector<void*>> uniformBuffersMappedLightsPools;
 
 	std::vector< std::vector<VkBuffer>> uniformBuffersMaterialsPools;
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryMaterialsPools;

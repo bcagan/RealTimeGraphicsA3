@@ -83,6 +83,26 @@ struct Texture {
 };
 
 
+enum LightType {
+	LIGHT_NONE, LIGHT_SPHERE, LIGHT_SUN, LIGHT_SPOT
+};
+
+struct Light {
+	LightType type;
+	float_3 tint;
+	float angle;
+	float strength;
+	float radius;
+	float power;
+	float limit;
+	float fov;
+	float blend;
+	int shadowRes;
+
+	mat44<float> toWorld;
+	mat44<float> toLocal;
+};
+
 enum MaterialType {
 	MAT_NONE, MAT_PBR, MAT_LAM, MAT_MIR, MAT_ENV, MAT_SIM
 };
@@ -273,6 +293,7 @@ public:
 	std::vector<Texture> textureMaps;
 	std::vector<Texture> cubeMaps;
 	std::optional<Texture> environmentMap;
+	std::vector<Light> lights;
 };
 
 //All the finalized processed data structures resulting from graph navigation
@@ -312,6 +333,7 @@ public:
 	std::vector<Texture> textureMaps;
 	std::vector<Texture> cubeMaps;
 	std::optional<Texture> environmentMap;
+	std::vector<Light> lights;
 };
 
 //A scene graph node parsed from a .s72 file
@@ -328,6 +350,7 @@ struct GraphNode {
 	std::optional<SceneDriver> rotateDriver;
 	std::optional<SceneDriver> scaleDriver;
 	bool hasEnvironment = false;
+	std::optional<int> light;
 };
 
 //A mesh data structure parsed from both a .s72 and .b72 file
@@ -395,6 +418,7 @@ public:
 	std::optional<Texture> environmentMap;
 	std::optional<mat44<float>> worldToEnvironment;
 	std::optional<mat44<float>> environmentToWorld;
+	std::vector<Light> lights;
 	int maxPool = MAX_POOL;
 private:
 	std::map<std::string, int> instancedToPool;

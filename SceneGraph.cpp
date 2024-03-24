@@ -97,7 +97,7 @@ void SceneGraph::recurseSceneGraph(
 	int& drawNode, 
 	std::vector<Driver>& nodeDrivers, 
 	std::vector<Driver>& cameraDrivers,
-	std::vector<std::vector<mat44<float>>>& instancedTransforms, 
+	std::vector<std::vector<mat44<float>>>& instancedTransforms,
 	std::vector<std::vector<mat44<float>>>& instancedNormalTransforms,
 	std::vector<DrawNode>& drawNodes) {
 	//Get graph node and related transform information
@@ -135,6 +135,12 @@ void SceneGraph::recurseSceneGraph(
 	if (graphNode.hasEnvironment) {
 		worldToEnvironment = worldToLocal;
 		environmentToWorld = localToWorld;
+	}
+
+	if (graphNode.light.has_value()) {
+		int lightInd = *graphNode.light;
+		lights[lightInd].toLocal = worldToLocal;
+		lights[lightInd].toWorld = localToWorld;
 	}
 
 	//Handle camera nodes
@@ -315,6 +321,7 @@ DrawListIntermediate SceneGraph::navigateSceneGraphInt(int instanceSize) {
 		drawList.normalTransforms.push_back(node.normalTransform);
 	}
 	drawList.worldToEnvironment = worldToEnvironment;
+	drawList.lights = lights;
 	return drawList;
 }
 
@@ -463,6 +470,7 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 	list.textureMaps = intermediate.textureMaps;
 	list.cubeMaps = intermediate.cubeMaps;
 	list.environmentMap = intermediate.environmentMap;
+	list.lights = intermediate.lights;
 	std::optional<mat44<float>> worldToEnvironment = intermediate.worldToEnvironment;
 	
 	//Data that needs to be further parsed
