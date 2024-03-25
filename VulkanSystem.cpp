@@ -77,6 +77,7 @@ void VulkanSystem::initVulkan(DrawList drawList, std::string cameraName) {
 	//Lights
 	rawEnvironment = drawList.environmentMap;
 	lightPool = drawList.lights;
+	worldTolightPool = drawList.worldToLights;
 
 	//Animate and bounding box
 	drawPools = drawList.drawPools;
@@ -420,6 +421,10 @@ void VulkanSystem::cleanup() {
 			vkFreeMemory(device, uniformBuffersMemoryCamerasPools[pool][frame], nullptr);
 			vkDestroyBuffer(device, uniformBuffersLightsPools[pool][frame], nullptr);
 			vkFreeMemory(device, uniformBuffersMemoryLightsPools[pool][frame], nullptr);
+			vkDestroyBuffer(device, uniformBuffersLightTransformsPools[pool][frame], nullptr);
+			vkFreeMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], nullptr);
+			vkDestroyBuffer(device, uniformBuffersNumLightsPools[pool][frame], nullptr);
+			vkFreeMemory(device, uniformBuffersMemoryNumLightsPools[pool][frame], nullptr);
 		}
 	}
 	vkDestroyDescriptorPool(device, descriptorPoolHDR, nullptr);
@@ -1042,38 +1047,52 @@ void VulkanSystem::createDescriptorSetLayout() {
 	LUTBinding.pImmutableSamplers = nullptr;
 	LUTBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+
+
+	VkDescriptorSetLayoutBinding lightTransformBinding{};
+	lightTransformBinding.binding = 6;
+	lightTransformBinding.descriptorCount = 1;
+	lightTransformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	lightTransformBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding lightBinding{};
+	lightBinding.binding = 7;
+	lightBinding.descriptorCount = 1;
+	lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	lightBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding nunLightsBinding{}; //TODO: IMPORTANT REMOVE THIS EVENTUALLY PLEASE!!!
+	nunLightsBinding.binding = 8; //MAKE PUSH CONSTANT INSTEAD
+	nunLightsBinding.descriptorCount = 1;
+	nunLightsBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	nunLightsBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
 	VkDescriptorSetLayoutBinding environmentBinding{};
-	environmentBinding.binding = 6;
+	environmentBinding.binding = 9;
 	environmentBinding.descriptorCount = 1;
 	environmentBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	environmentBinding.pImmutableSamplers = nullptr;
 	environmentBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding normTransformBinding{};
-	normTransformBinding.binding = 7;
+	normTransformBinding.binding = 10;
 	normTransformBinding.descriptorCount = 1;
 	normTransformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	normTransformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 	VkDescriptorSetLayoutBinding envTransformBinding{};
-	envTransformBinding.binding = 8;
+	envTransformBinding.binding = 11;
 	envTransformBinding.descriptorCount = 1;
 	envTransformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	envTransformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-	VkDescriptorSetLayoutBinding lightBinding{};
-	lightBinding.binding = 9;
-	lightBinding.descriptorCount = 1;
-	lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	lightBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
 	VkDescriptorSetLayoutBinding bindings[] = { 
 		transformBinding, cameraBinding, materialBinding,textureBinding, 
-		cubeBinding, LUTBinding, lightBinding, environmentBinding, normTransformBinding, envTransformBinding};
+		cubeBinding, LUTBinding, lightTransformBinding, lightBinding, nunLightsBinding, environmentBinding, normTransformBinding, envTransformBinding};
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = rawEnvironment.has_value() ? 10 : 7;
+	layoutInfo.bindingCount = rawEnvironment.has_value() ? 12 : 9;
 	layoutInfo.pBindings = bindings;
 	if (vkCreateDescriptorSetLayout(
 		device, &layoutInfo, nullptr, &descriptorSetLayouts[0]) != VK_SUCCESS) {
@@ -1887,7 +1906,9 @@ void VulkanSystem::createEnvironmentImage(Texture env, VkImage& image,
 		memcpy(data, (void*)(&env.data[face*static_cast<size_t>(layerSize)]), static_cast<size_t>(layerSize));
 		vkUnmapMemory(device, stageBufferMemory[face]);
 	}
-	stbi_image_free((void*)env.data);
+	if (env.doFree) {
+		stbi_image_free((void*)env.data);
+	}
 
 	int usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
 		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -1957,7 +1978,9 @@ void VulkanSystem::createTextureImage(Texture tex, VkImage& image,
 	vkMapMemory(device, stageBufferMemory, 0, imageSize, 0, &data);
 	memcpy(data, (void*)tex.data, static_cast<size_t>(imageSize));
 	vkUnmapMemory(device, stageBufferMemory);
-	stbi_image_free((void*)tex.data);
+	if (tex.doFree) {
+		stbi_image_free((void*)tex.data);
+	}
 
 	int usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
 		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -2168,6 +2191,12 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 	uniformBuffersLightsPools.resize(transformsSize);
 	uniformBuffersMemoryLightsPools.resize(transformsSize);
 	uniformBuffersMappedLightsPools.resize(transformsSize);
+	uniformBuffersLightTransformsPools.resize(transformsSize);
+	uniformBuffersMemoryLightTransformsPools.resize(transformsSize);
+	uniformBuffersMappedLightTransformsPools.resize(transformsSize);
+	uniformBuffersNumLightsPools.resize(transformsSize);
+	uniformBuffersMemoryNumLightsPools.resize(transformsSize);
+	uniformBuffersMappedNumLightsPools.resize(transformsSize);
 	uniformBuffersMaterialsPools.resize(transformsSize);
 	uniformBuffersMemoryMaterialsPools.resize(transformsSize);
 	uniformBuffersMappedMaterialsPools.resize(transformsSize);
@@ -2189,6 +2218,12 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 		uniformBuffersLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMemoryLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMappedLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+		uniformBuffersLightTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+		uniformBuffersMemoryLightTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+		uniformBuffersMappedLightTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+		uniformBuffersNumLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+		uniformBuffersMemoryNumLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+		uniformBuffersMappedNumLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMaterialsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMemoryMaterialsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMappedMaterialsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
@@ -2206,6 +2241,7 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 			if (rawEnvironment.has_value()) bufferSizeEnvironmentTransforms= sizeof(mat44<float>) * transformEnvironmentPools[pool].size();
 			VkDeviceSize bufferSizeCameras = sizeof(mat44<float>);
 			VkDeviceSize bufferSizeLights = sizeof(Light) * lightPool.size();
+			VkDeviceSize bufferSizeLightTransforms = sizeof(mat44<float>) * lightPool.size();
 			VkDeviceSize bufferSizeMaterials = sizeof(DrawMaterial) * materialPools[pool].size();
 			createBuffer(bufferSizeTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersTransformsPools[pool][frame], uniformBuffersMemoryTransformsPools[pool][frame], realloc);
@@ -2229,6 +2265,14 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 				uniformBuffersLightsPools[pool][frame], uniformBuffersMemoryLightsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryLightsPools[pool][frame], 0, bufferSizeLights, 0,
 				uniformBuffersMappedLightsPools[pool].data() + frame);
+			createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+				uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
+			vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
+				uniformBuffersMappedLightTransformsPools[pool].data() + frame);
+			createBuffer(sizeof(int), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+				uniformBuffersNumLightsPools[pool][frame], uniformBuffersMemoryNumLightsPools[pool][frame], realloc);
+			vkMapMemory(device, uniformBuffersMemoryNumLightsPools[pool][frame], 0, sizeof(int), 0,
+				uniformBuffersMappedNumLightsPools[pool].data() + frame);
 			createBuffer(bufferSizeMaterials, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersMaterialsPools[pool][frame], uniformBuffersMemoryMaterialsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryMaterialsPools[pool][frame], 0, bufferSizeMaterials, 0,
@@ -2243,6 +2287,7 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 			VkDeviceSize bufferSizeEnvironmentTransforms = sizeof(mat44<float>) * transformEnvironmentInstPoolsStore[pool - transformPools.size()].size();
 			VkDeviceSize bufferSizeCameras = sizeof(mat44<float>);
 			VkDeviceSize bufferSizeLights = sizeof(Light) * lightPool.size();
+			VkDeviceSize bufferSizeLightTransforms = sizeof(mat44<float>) * lightPool.size();
 			VkDeviceSize bufferSizeMaterials = sizeof(DrawMaterial);
 			createBuffer(bufferSizeTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersTransformsPools[pool][frame], uniformBuffersMemoryTransformsPools[pool][frame], realloc);
@@ -2266,6 +2311,14 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 				uniformBuffersLightsPools[pool][frame], uniformBuffersMemoryLightsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryLightsPools[pool][frame], 0, bufferSizeLights, 0,
 				uniformBuffersMappedLightsPools[pool].data() + frame);
+			createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+				uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
+			vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
+				uniformBuffersMappedLightTransformsPools[pool].data() + frame);
+			createBuffer(sizeof(int), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+				uniformBuffersNumLightsPools[pool][frame], uniformBuffersMemoryNumLightsPools[pool][frame], realloc);
+			vkMapMemory(device, uniformBuffersMemoryNumLightsPools[pool][frame], 0, sizeof(int), 0,
+				uniformBuffersMappedNumLightsPools[pool].data() + frame);
 			createBuffer(bufferSizeMaterials, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersMaterialsPools[pool][frame], uniformBuffersMemoryMaterialsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryMaterialsPools[pool][frame], 0, bufferSizeMaterials, 0,
@@ -2284,8 +2337,8 @@ void VulkanSystem::createDescriptorPool() {
 	std::array<VkDescriptorPoolSize,2> poolSizesHDR{};
 	poolSizesHDR[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizesHDR[0].descriptorCount = rawEnvironment.has_value() ? 
-		6 * (transformsSize)*MAX_FRAMES_IN_FLIGHT :
-		4 * (transformsSize)*MAX_FRAMES_IN_FLIGHT;
+		7 * (transformsSize)*MAX_FRAMES_IN_FLIGHT :
+		5 * (transformsSize)*MAX_FRAMES_IN_FLIGHT;
 	poolSizesHDR[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizesHDR[1].descriptorCount = rawEnvironment.has_value() ? 
 		(rawTextures.size() + rawCubes.size() + 1) * transformsSize*MAX_FRAMES_IN_FLIGHT : 
@@ -2361,7 +2414,15 @@ void VulkanSystem::createDescriptorSets() {
 			VkDescriptorBufferInfo bufferInfoLights{};
 			bufferInfoLights.buffer = uniformBuffersLightsPools[pool][frame];
 			bufferInfoLights.offset = 0;
-			bufferInfoLights.range = sizeof(Light)*lightPool.size();
+			bufferInfoLights.range = sizeof(Light) * lightPool.size();
+			VkDescriptorBufferInfo bufferInfoLightTransforms{};
+			bufferInfoLightTransforms.buffer = uniformBuffersLightTransformsPools[pool][frame];
+			bufferInfoLightTransforms.offset = 0;
+			bufferInfoLightTransforms.range = sizeof(mat44<float>) * lightPool.size();
+			VkDescriptorBufferInfo bufferInfoNumLights{};
+			bufferInfoNumLights.buffer = uniformBuffersNumLightsPools[pool][frame];
+			bufferInfoNumLights.offset = 0;
+			bufferInfoNumLights.range = sizeof(float);
 			VkDescriptorBufferInfo bufferInfoMaterials{};
 			bufferInfoMaterials.buffer = uniformBuffersMaterialsPools[pool][frame];
 			bufferInfoMaterials.offset = 0;
@@ -2378,8 +2439,8 @@ void VulkanSystem::createDescriptorSets() {
 			}
 			size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + frame;
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = rawEnvironment.has_value() ?
-				std::vector<VkWriteDescriptorSet>(8 + samplerSize) :
-				std::vector<VkWriteDescriptorSet>(5 + samplerSize);
+				std::vector<VkWriteDescriptorSet>(10 + samplerSize) :
+				std::vector<VkWriteDescriptorSet>(7 + samplerSize);
 			writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[0].dstSet = descriptorSetsHDR[poolInd];
 			writeDescriptorSets[0].dstBinding = 0;
@@ -2403,44 +2464,58 @@ void VulkanSystem::createDescriptorSets() {
 			writeDescriptorSets[2].pBufferInfo = &bufferInfoMaterials;
 			writeDescriptorSets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[3].dstSet = descriptorSetsHDR[poolInd];
-			writeDescriptorSets[3].dstBinding = 9;
+			writeDescriptorSets[3].dstBinding = 6;
 			writeDescriptorSets[3].dstArrayElement = 0;
 			writeDescriptorSets[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			writeDescriptorSets[3].descriptorCount = 1;
-			writeDescriptorSets[3].pBufferInfo = &bufferInfoLights;
+			writeDescriptorSets[3].pBufferInfo = &bufferInfoLightTransforms;
+			writeDescriptorSets[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSets[4].dstSet = descriptorSetsHDR[poolInd];
+			writeDescriptorSets[4].dstBinding = 7;
+			writeDescriptorSets[4].dstArrayElement = 0;
+			writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSets[4].descriptorCount = 1;
+			writeDescriptorSets[4].pBufferInfo = &bufferInfoLights;
+			writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSets[5].dstSet = descriptorSetsHDR[poolInd];
+			writeDescriptorSets[5].dstBinding = 8;
+			writeDescriptorSets[5].dstArrayElement = 0;
+			writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSets[5].descriptorCount = 1;
+			writeDescriptorSets[5].pBufferInfo = &bufferInfoNumLights;
 
 			VkDescriptorImageInfo imageInfoLUT{};
 			imageInfoLUT.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			imageInfoLUT.imageView = LUTImageView;
 			imageInfoLUT.sampler = LUTSampler;
-			writeDescriptorSets[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSets[4].dstSet = descriptorSetsHDR[poolInd];
-			writeDescriptorSets[4].dstBinding = 5;
-			writeDescriptorSets[4].dstArrayElement = 0;
-			writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeDescriptorSets[4].descriptorCount = 1;
-			writeDescriptorSets[4].pImageInfo = &imageInfoLUT;
+			writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
+			writeDescriptorSets[6].dstBinding = 5;
+			writeDescriptorSets[6].dstArrayElement = 0;
+			writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptorSets[6].descriptorCount = 1;
+			writeDescriptorSets[6].pImageInfo = &imageInfoLUT;
 
 			if (rawEnvironment.has_value()) {
-				writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[5].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[5].dstBinding = 7;
-				writeDescriptorSets[5].dstArrayElement = 0;
-				writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeDescriptorSets[5].descriptorCount = 1;
-				writeDescriptorSets[5].pBufferInfo = &bufferInfoNormTransforms;
-				writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[6].dstBinding = 8;
-				writeDescriptorSets[6].dstArrayElement = 0;
-				writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeDescriptorSets[6].descriptorCount = 1;
-				writeDescriptorSets[6].pBufferInfo = &bufferInfoEnvTransforms;
+				writeDescriptorSets[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[7].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[7].dstBinding = 10;
+				writeDescriptorSets[7].dstArrayElement = 0;
+				writeDescriptorSets[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				writeDescriptorSets[7].descriptorCount = 1;
+				writeDescriptorSets[7].pBufferInfo = &bufferInfoNormTransforms;
+				writeDescriptorSets[8].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[8].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[8].dstBinding = 11;
+				writeDescriptorSets[8].dstArrayElement = 0;
+				writeDescriptorSets[8].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				writeDescriptorSets[8].descriptorCount = 1;
+				writeDescriptorSets[8].pBufferInfo = &bufferInfoEnvTransforms;
 			}
 
 			std::vector<VkDescriptorImageInfo> imageInfosTex = std::vector<VkDescriptorImageInfo>(rawTextures.size());
 			for (size_t tex = 0; tex < rawTextures.size(); tex++) {
-				size_t descSet = rawEnvironment.has_value() ? tex + 7 : tex + 5;
+				size_t descSet = rawEnvironment.has_value() ? tex + 9 : tex + 7;
 				imageInfosTex[tex].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosTex[tex].imageView = textureImageViews[tex];
 				imageInfosTex[tex].sampler = textureSamplers[tex];
@@ -2454,7 +2529,7 @@ void VulkanSystem::createDescriptorSets() {
 			}
 			std::vector<VkDescriptorImageInfo> imageInfosCube = std::vector<VkDescriptorImageInfo>(rawCubes.size());
 			for (size_t cube = 0; cube < rawCubes.size(); cube++) {
-				size_t descSet = rawEnvironment.has_value() ? cube + 7 : cube + 5;
+				size_t descSet = rawEnvironment.has_value() ? cube + 9 : cube + 7;
 				descSet += rawTextures.size();
 				imageInfosCube[cube].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosCube[cube].imageView = cubeImageViews[cube];
@@ -2470,13 +2545,13 @@ void VulkanSystem::createDescriptorSets() {
 
 			if (rawEnvironment.has_value()) {
 				VkDescriptorImageInfo imageInfoEnv;
-				size_t descSet =samplerSize + 7;
+				size_t descSet =samplerSize + 9;
 				imageInfoEnv.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfoEnv.imageView = environmentImageView;
 				imageInfoEnv.sampler = environmentSampler;
 				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[descSet].dstBinding = 6;
+				writeDescriptorSets[descSet].dstBinding = 9;
 				writeDescriptorSets[descSet].dstArrayElement = 0;
 				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				writeDescriptorSets[descSet].descriptorCount = 1;
@@ -2499,6 +2574,14 @@ void VulkanSystem::createDescriptorSets() {
 			bufferInfoLights.buffer = uniformBuffersLightsPools[pool][frame];
 			bufferInfoLights.offset = 0;
 			bufferInfoLights.range = sizeof(Light) * lightPool.size();
+			VkDescriptorBufferInfo bufferInfoNumLights{};
+			bufferInfoNumLights.buffer = uniformBuffersNumLightsPools[pool][frame];
+			bufferInfoNumLights.offset = 0;
+			bufferInfoNumLights.range = sizeof(float);
+			VkDescriptorBufferInfo bufferInfoLightTransforms{};
+			bufferInfoLightTransforms.buffer = uniformBuffersLightTransformsPools[pool][frame];
+			bufferInfoLightTransforms.offset = 0;
+			bufferInfoLightTransforms.range = sizeof(mat44<float>) * lightPool.size();
 			VkDescriptorBufferInfo bufferInfoMaterials{};
 			bufferInfoMaterials.buffer = uniformBuffersMaterialsPools[pool][frame];
 			bufferInfoMaterials.offset = 0;
@@ -2515,8 +2598,8 @@ void VulkanSystem::createDescriptorSets() {
 			}
 			size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + frame;
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = rawEnvironment.has_value() ?
-				std::vector<VkWriteDescriptorSet>(8 + samplerSize) :
-				std::vector<VkWriteDescriptorSet>(5 + samplerSize);
+				std::vector<VkWriteDescriptorSet>(10 + samplerSize) :
+				std::vector<VkWriteDescriptorSet>(7 + samplerSize);
 
 			writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[0].dstSet = descriptorSetsHDR[poolInd];
@@ -2541,44 +2624,58 @@ void VulkanSystem::createDescriptorSets() {
 			writeDescriptorSets[2].pBufferInfo = &bufferInfoMaterials;
 			writeDescriptorSets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[3].dstSet = descriptorSetsHDR[poolInd];
-			writeDescriptorSets[3].dstBinding = 9;
+			writeDescriptorSets[3].dstBinding = 6;
 			writeDescriptorSets[3].dstArrayElement = 0;
 			writeDescriptorSets[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			writeDescriptorSets[3].descriptorCount = 1;
-			writeDescriptorSets[3].pBufferInfo = &bufferInfoLights;
+			writeDescriptorSets[3].pBufferInfo = &bufferInfoLightTransforms;
+			writeDescriptorSets[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSets[4].dstSet = descriptorSetsHDR[poolInd];
+			writeDescriptorSets[4].dstBinding = 7;
+			writeDescriptorSets[4].dstArrayElement = 0;
+			writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSets[4].descriptorCount = 1;
+			writeDescriptorSets[4].pBufferInfo = &bufferInfoLights;
+			writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSets[5].dstSet = descriptorSetsHDR[poolInd];
+			writeDescriptorSets[5].dstBinding = 8;
+			writeDescriptorSets[5].dstArrayElement = 0;
+			writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSets[5].descriptorCount = 1;
+			writeDescriptorSets[5].pBufferInfo = &bufferInfoNumLights;
 
 			VkDescriptorImageInfo imageInfoLUT{};
 			imageInfoLUT.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			imageInfoLUT.imageView = LUTImageView;
 			imageInfoLUT.sampler = LUTSampler;
-			writeDescriptorSets[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSets[4].dstSet = descriptorSetsHDR[poolInd];
-			writeDescriptorSets[4].dstBinding = 5;
-			writeDescriptorSets[4].dstArrayElement = 0;
-			writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeDescriptorSets[4].descriptorCount = 1;
-			writeDescriptorSets[4].pImageInfo = &imageInfoLUT;
+			writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
+			writeDescriptorSets[6].dstBinding = 5;
+			writeDescriptorSets[6].dstArrayElement = 0;
+			writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptorSets[6].descriptorCount = 1;
+			writeDescriptorSets[6].pImageInfo = &imageInfoLUT;
 
 			if (rawEnvironment.has_value()) {
-				writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[5].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[5].dstBinding = 7;
-				writeDescriptorSets[5].dstArrayElement = 0;
-				writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeDescriptorSets[5].descriptorCount = 1;
-				writeDescriptorSets[5].pBufferInfo = &bufferInfoNormTransforms;
-				writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[6].dstBinding = 8;
-				writeDescriptorSets[6].dstArrayElement = 0;
-				writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeDescriptorSets[6].descriptorCount = 1;
-				writeDescriptorSets[6].pBufferInfo = &bufferInfoEnvTransforms;
+				writeDescriptorSets[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[7].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[7].dstBinding = 10;
+				writeDescriptorSets[7].dstArrayElement = 0;
+				writeDescriptorSets[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				writeDescriptorSets[7].descriptorCount = 1;
+				writeDescriptorSets[7].pBufferInfo = &bufferInfoNormTransforms;
+				writeDescriptorSets[8].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[8].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[8].dstBinding = 11;
+				writeDescriptorSets[8].dstArrayElement = 0;
+				writeDescriptorSets[8].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				writeDescriptorSets[8].descriptorCount = 1;
+				writeDescriptorSets[8].pBufferInfo = &bufferInfoEnvTransforms;
 			}
 
 			std::vector<VkDescriptorImageInfo> imageInfosTex = std::vector<VkDescriptorImageInfo>(rawTextures.size());
 			for (size_t tex = 0; tex < rawTextures.size(); tex++) {
-				size_t descSet = rawEnvironment.has_value() ? tex + 7 : tex + 5;
+				size_t descSet = rawEnvironment.has_value() ? tex + 9 : tex + 7;
 				imageInfosTex[tex].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosTex[tex].imageView = textureImageViews[tex];
 				imageInfosTex[tex].sampler = textureSamplers[tex];
@@ -2593,7 +2690,7 @@ void VulkanSystem::createDescriptorSets() {
 
 			std::vector<VkDescriptorImageInfo> imageInfosCube = std::vector<VkDescriptorImageInfo>(rawCubes.size());
 			for (size_t cube = 0; cube < rawCubes.size(); cube++) {
-				size_t descSet = rawEnvironment.has_value() ? cube + 7 : cube + 5;
+				size_t descSet = rawEnvironment.has_value() ? cube + 9 : cube + 7;
 				descSet += rawTextures.size();
 				imageInfosCube[cube].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosCube[cube].imageView = cubeImageViews[cube];
@@ -2611,13 +2708,13 @@ void VulkanSystem::createDescriptorSets() {
 
 			if (rawEnvironment.has_value()) {
 				VkDescriptorImageInfo imageInfoEnv;
-				size_t descSet = samplerSize + 7;
+				size_t descSet = samplerSize + 9;
 				imageInfoEnv.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfoEnv.imageView = environmentImageView;
 				imageInfoEnv.sampler = environmentSampler;
 				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[descSet].dstBinding = 6;
+				writeDescriptorSets[descSet].dstBinding = 9;
 				writeDescriptorSets[descSet].dstArrayElement = 0;
 				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				writeDescriptorSets[descSet].descriptorCount = 1;
@@ -2848,7 +2945,12 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 		memcpy(uniformBuffersMappedCamerasPools[pool][frame], &(local),
 			sizeof(mat44<float>));
 		memcpy(uniformBuffersMappedLightsPools[pool][frame], lightPool.data(),
-			sizeof(Light)*lightPool.size());
+			sizeof(DrawLight) * lightPool.size());
+		int numLights = (int)lightPool.size();
+		memcpy(uniformBuffersMappedNumLightsPools[pool][frame], &numLights,
+			sizeof(int));
+		memcpy(uniformBuffersMappedLightTransformsPools[pool][frame], worldTolightPool.data(),
+			sizeof(mat44<float>) * worldTolightPool.size());
 		memcpy(uniformBuffersMappedMaterialsPools[pool][frame], 
 			materialPools[pool].data(), matsize * materialPools[pool].size());
 	}
@@ -2869,10 +2971,17 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 				transformEnvironmentInstPools[poolAdjusted].data(), sizeof(mat44<float>) *
 				transformEnvironmentInstPools[poolAdjusted].size());
 		}
-		memcpy(uniformBuffersMappedCamerasPools[pool][frame], &(local), 
+		memcpy(uniformBuffersMappedCamerasPools[pool][frame], &(local),
 			sizeof(mat44<float>));
-		memcpy(uniformBuffersMappedMaterialsPools[pool][frame], 
-			&instancedMaterials[pool], matsize);
+		memcpy(uniformBuffersMappedLightsPools[pool][frame], lightPool.data(),
+			sizeof(DrawLight)* lightPool.size());
+		int numLights = (int)lightPool.size();
+		memcpy(uniformBuffersMappedNumLightsPools[pool][frame], &numLights,
+			sizeof(int));
+		memcpy(uniformBuffersMappedLightTransformsPools[pool][frame], worldTolightPool.data(),
+			sizeof(mat44<float>)* worldTolightPool.size());
+		memcpy(uniformBuffersMappedMaterialsPools[pool][frame],
+			materialPools[pool].data(), matsize* materialPools[pool].size());
 	}
 }
 

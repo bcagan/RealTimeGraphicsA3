@@ -341,6 +341,52 @@ void SceneGraph::navigateSceneGraphMeshes(std::vector<bool>& encountered, int no
 	}
 }
 
+
+std::vector<DrawLight> SceneGraph::toDrawLights(std::vector<Light> lights) {
+	std::vector<DrawLight> retLights;
+	for (Light light : lights) {
+		DrawLight drawLight;
+		drawLight.angle = light.angle;
+		drawLight.blend = light.blend;
+		drawLight.fov = light.fov;
+		drawLight.limit = light.limit;
+		drawLight.power = light.power;
+		drawLight.radius = light.radius;
+		drawLight.shadowRes = light.shadowRes;
+		drawLight.strength = light.strength;
+		drawLight.tintB = light.tintB;
+		drawLight.tintG = light.tintG;
+		drawLight.tintR = light.tintR;
+		drawLight.type = light.type;
+		retLights.push_back(drawLight);
+	}
+	return retLights;
+}
+
+
+std::vector<DrawLight> SceneGraph::toDrawLights(std::vector<Light> lights, std::vector<mat44<float>>& transforms) {
+	std::vector<DrawLight> retLights;
+	for (Light light : lights) {
+		DrawLight drawLight;
+		drawLight.angle = light.angle;
+		drawLight.blend = light.blend;
+		drawLight.fov = light.fov;
+		drawLight.limit = light.limit;
+		drawLight.power = light.power;
+		drawLight.radius = light.radius;
+		drawLight.shadowRes = light.shadowRes;
+		drawLight.strength = light.strength;
+		drawLight.tintB = light.tintB;
+		drawLight.tintG = light.tintG;
+		drawLight.tintR = light.tintR;
+		drawLight.type = light.type;
+		retLights.push_back(drawLight);
+		transforms.push_back(light.toLocal);
+	}
+	return retLights;
+
+}
+
 DrawMaterial processMaterial(std::optional<Material> matOpt) {
 	DrawMaterial drawMat;
 	if (matOpt.has_value()) {
@@ -470,7 +516,8 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 	list.textureMaps = intermediate.textureMaps;
 	list.cubeMaps = intermediate.cubeMaps;
 	list.environmentMap = intermediate.environmentMap;
-	list.lights = intermediate.lights;
+	list.worldToLights = std::vector<mat44<float>>();
+	list.lights = toDrawLights(intermediate.lights, list.worldToLights);
 	std::optional<mat44<float>> worldToEnvironment = intermediate.worldToEnvironment;
 	
 	//Data that needs to be further parsed

@@ -195,6 +195,23 @@ void Mode::mainLoop(SceneGraph* graph) {
 int Mode::modeMain() {
 	//TODO: Make keeping this around not necessary
 	Texture t0 = Texture::parseTexture("Textures/brick.png", false);
+	Texture defaultCube;
+	defaultCube.doFree = false;
+	defaultCube.realY = 6;
+	defaultCube.y = 1;
+	defaultCube.x = 1;
+	defaultCube.type = defaultCube.TYPE_CUBE;
+	defaultCube.format = defaultCube.FORM_RGBE;
+	defaultCube.mipLevels = 1;
+	unsigned char char255 = unsigned char(255);
+	const unsigned char char255Arr[] = {
+	char255 ,char255 ,char255 ,char255 ,
+	 char255 ,char255 ,char255 ,char255 ,
+	 char255 ,char255 ,char255 ,char255 ,
+	 char255 ,char255 ,char255 ,char255 ,
+	 char255 ,char255 ,char255 ,char255 ,
+	 char255 ,char255 ,char255 ,char255 };
+	defaultCube.data = char255Arr;
 
 	//Parse and initialize user requested .s72 scene graph file
 	Parser parser;
@@ -205,6 +222,12 @@ int Mode::modeMain() {
 	vulkanSystem.LUT = lut;
 
 	DrawList drawList = graph.navigateSceneGraph(verbose, poolSize);
+	if (drawList.cubeMaps.size() == 0) {
+		drawList.cubeMaps.push_back(defaultCube);
+	}
+	if (drawList.textureMaps.size() == 0) {
+		drawList.textureMaps.push_back(lut);
+	}
 	
 	//Initialize Vulkan System
 	vulkanSystem.shaderDir = shaderDir;

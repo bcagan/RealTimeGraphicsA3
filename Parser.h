@@ -367,9 +367,9 @@ Light Parser::parseLight(std::vector<std::string> jsonObject) {
 				throw std::runtime_error("ERROR: Incorrect format for light tint found in Parser.");
 			}
 			else{
-				float_3 tint; 
-				tint.x = tintVec[0]; tint.y = tintVec[1]; tint.z = tintVec[2];
-				parsedLight.tint = tint;
+				parsedLight.tintR = tintVec[0];
+				parsedLight.tintG = tintVec[1];
+				parsedLight.tintB = tintVec[2];
 			}
 		}
 		else if (json1 == 's' && json2 == 'u') {

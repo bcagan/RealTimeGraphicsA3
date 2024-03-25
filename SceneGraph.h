@@ -77,6 +77,7 @@ struct Texture {
 	//     faces2-5
 	int realY;
 	int mipLevels;
+	bool doFree = true;
 	Texture() {};
 	~Texture() {};
 	static Texture parseTexture(std::string path, bool cube);
@@ -88,8 +89,10 @@ enum LightType {
 };
 
 struct Light {
-	LightType type;
-	float_3 tint;
+	int type;
+	float tintR;
+	float tintG;
+	float tintB;
 	float angle;
 	float strength;
 	float radius;
@@ -101,6 +104,21 @@ struct Light {
 
 	mat44<float> toWorld;
 	mat44<float> toLocal;
+};
+
+struct DrawLight {
+	int type;
+	float tintR;
+	float tintG;
+	float tintB;
+	float angle;
+	float strength;
+	float radius;
+	float power;
+	float limit;
+	float fov;
+	float blend;
+	int shadowRes;
 };
 
 enum MaterialType {
@@ -333,7 +351,8 @@ public:
 	std::vector<Texture> textureMaps;
 	std::vector<Texture> cubeMaps;
 	std::optional<Texture> environmentMap;
-	std::vector<Light> lights;
+	std::vector<DrawLight> lights;
+	std::vector<mat44<float>> worldToLights;
 };
 
 //A scene graph node parsed from a .s72 file
@@ -422,6 +441,8 @@ public:
 	int maxPool = MAX_POOL;
 private:
 	std::map<std::string, int> instancedToPool;
+	std::vector<DrawLight> toDrawLights(std::vector<Light> lights);
+	std::vector<DrawLight> toDrawLights(std::vector<Light> lights, std::vector<mat44<float>>& transforms);
 };
 
 
