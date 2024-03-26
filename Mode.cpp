@@ -226,7 +226,7 @@ int Mode::modeMain() {
 		drawList.cubeMaps.push_back(defaultCube);
 	}
 	if (drawList.textureMaps.size() == 0) {
-		drawList.textureMaps.push_back(lut);
+		drawList.textureMaps.push_back(t0);
 	}
 	
 	//Initialize Vulkan System
@@ -259,6 +259,6 @@ int Mode::modeMain() {
 	mainLoop(&graph);
 
 	//Clean up vulkan
-	vulkanSystem.cleanup();
+	//vulkanSystem.cleanup();
 	return 0;
 }

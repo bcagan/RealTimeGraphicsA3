@@ -140,7 +140,6 @@ void SceneGraph::recurseSceneGraph(
 	if (graphNode.light.has_value()) {
 		int lightInd = *graphNode.light;
 		lights[lightInd].toLocal = worldToLocal;
-		lights[lightInd].toWorld = localToWorld;
 	}
 
 	//Handle camera nodes

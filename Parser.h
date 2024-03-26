@@ -166,7 +166,7 @@ MaterialInt Parser::parseMaterial(std::vector<std::string> jsonObject) {
 			std::string lambertianString =
 				jsonObject[stringInd + 1];
 			lambertianString = 
-				lambertianString.substr(13, lambertianString.size() - 14);
+				lambertianString.substr(10, lambertianString.size() - 11);
 			PartialMaterialData partialData = parseMaterialData(lambertianString, true);
 			if (partialData.type == PART_TEX) {
 				parsedMaterial.data.lambertian.useValue = false;
@@ -280,8 +280,8 @@ GraphNode Parser::parseNode(std::vector<std::string> jsonObject) {
 			if (rotationArr.size() < 4) {
 				throw std::runtime_error("ERROR: Invalid rotation array found in node when parsing json file in Parser.");
 			}
-			parsedNode.rotation = quaternion<float>::angleAxis(
-				rotationArr[3],
+			parsedNode.rotation.setAngle(rotationArr[3]);
+			parsedNode.rotation.setAxis(
 				float_3(rotationArr[0], rotationArr[1], rotationArr[2])
 			);
 		}

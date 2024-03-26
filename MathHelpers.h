@@ -1198,20 +1198,14 @@ public:
 		_axis.z = v[3];
 	}
 	quaternion<T>(T angle, T v0, T v1, T v2) {
-		T a2 = angle / 2;
-		T s = sin(a2);
-		_angle = cos(a2);
-		_axis.x = v1 * s;
-		_axis.y = v2 * s;
-		_axis.z = v2 * s;
+		_angle = angle;
+		_axis.x = v0;
+		_axis.y = v1;
+		_axis.z = v2;
 	}
 	quaternion<T>(T angle, vec3<T> axis) {
-		T a2 = angle / 2;
-		T s = sin(a2);
-		_angle = cos(a2);
-		_axis.x = axis.x * s;
-		_axis.y = axis.y * s;
-		_axis.z = axis.z * s;
+		_angle = angle;
+		_axis = axis;
 	}
 	static quaternion<T> angleAxis(const T& angle, const vec3<T> axis) {
 		quaternion<T> newQuaternion;
