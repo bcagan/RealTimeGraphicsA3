@@ -420,6 +420,7 @@ public:
 	std::vector<SceneVertex> vertexPool;
 	void recurseSceneGraph(
 		std::vector<DrawCamera>& drawCameras,
+		std::vector<Light>& drawLights,
 		std::vector<Vertex>& vertices, 
 		std::vector<uint32_t>& indices, 
 		int node,

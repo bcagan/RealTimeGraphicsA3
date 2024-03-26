@@ -88,7 +88,8 @@ std::pair<float_3, float> DrawNode::produceBoundingSphere(std::vector<Vertex> ve
 //drawNodes - a reference to the final list of draw nodes. Using a reference
 //		should eliminate "stack" size when not using instances
 void SceneGraph::recurseSceneGraph(
-	std::vector<DrawCamera>& drawCameras, 
+	std::vector<DrawCamera>& drawCameras,
+	std::vector<Light>& drawLights,
 	std::vector<Vertex>& vertices, 
 	std::vector<uint32_t> & indices,
 	int node, 
@@ -139,7 +140,9 @@ void SceneGraph::recurseSceneGraph(
 
 	if (graphNode.light.has_value()) {
 		int lightInd = *graphNode.light;
-		lights[lightInd].toLocal = worldToLocal;
+		Light newLight = lights[lightInd];
+		newLight.toLocal = worldToLocal;
+		drawLights.push_back(newLight);
 	}
 
 	//Handle camera nodes
@@ -265,6 +268,7 @@ void SceneGraph::recurseSceneGraph(
 	for (int child : graphNode.children) {
 		recurseSceneGraph(
 			drawCameras, 
+			drawLights,
 			vertices, 
 			indices, 
 			child, 
@@ -284,6 +288,7 @@ void SceneGraph::recurseSceneGraph(
 DrawListIntermediate SceneGraph::navigateSceneGraphInt(int instanceSize) {
 	DrawListIntermediate drawList;
 	drawList.vertexPool = std::vector<Vertex>();
+	drawList.lights = std::vector<Light>();
 	drawList.indexPool = std::vector<uint32_t>();
 	drawList.cameras = std::vector<DrawCamera>();
 	drawList.drawPool = std::vector<DrawNode>();
@@ -299,6 +304,7 @@ DrawListIntermediate SceneGraph::navigateSceneGraphInt(int instanceSize) {
 		std::vector<DrawNode> rootList;
 		recurseSceneGraph(
 			drawList.cameras,
+			drawList.lights,
 			drawList.vertexPool,
 			drawList.indexPool,
 			root,
@@ -320,7 +326,6 @@ DrawListIntermediate SceneGraph::navigateSceneGraphInt(int instanceSize) {
 		drawList.normalTransforms.push_back(node.normalTransform);
 	}
 	drawList.worldToEnvironment = worldToEnvironment;
-	drawList.lights = lights;
 	return drawList;
 }
 
