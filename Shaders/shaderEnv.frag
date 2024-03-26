@@ -35,7 +35,7 @@ layout(binding = 2) uniform MaterialArrat {
 layout(binding = 3) uniform sampler2D textures[100];
 layout(binding = 4) uniform samplerCube cubes[100];
 layout(binding = 5) uniform sampler2D lut;
-layout(binding = 9) uniform samplerCube environmentTexture;
+layout(binding = 8) uniform samplerCube environmentTexture;
 struct Light {
 
 	int type;
@@ -64,8 +64,9 @@ struct LightNumInt
 {
     int lightNumInt;
 };
-layout(binding = 8) uniform LightNum {
-    LightNumInt inLightNum;
+layout( push_constant ) uniform LightNum
+{
+	LightNumInt inLightNum;
 };
 
 layout(location = 0) out vec4 outColor;

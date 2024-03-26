@@ -63,12 +63,15 @@ struct LightNumInt
 {
     int lightNumInt;
 };
-layout(binding = 8) uniform LightNum {
-    LightNumInt inLightNum;
+layout( push_constant ) uniform LightNum
+{
+	LightNumInt inLightNum;
 };
 
 
 layout(location = 0) out vec4 outColor;
+
+
 
 void main() {
 	vec3 inLights[100];

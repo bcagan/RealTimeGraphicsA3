@@ -247,10 +247,6 @@ private:
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryLightsPools;
 	std::vector< std::vector<void*>> uniformBuffersMappedLightsPools;
 
-	std::vector< std::vector<VkBuffer>> uniformBuffersNumLightsPools;
-	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryNumLightsPools;
-	std::vector< std::vector<void*>> uniformBuffersMappedNumLightsPools;
-
 	std::vector< std::vector<VkBuffer>> uniformBuffersLightTransformsPools;
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryLightTransformsPools;
 	std::vector< std::vector<void*>> uniformBuffersMappedLightTransformsPools;

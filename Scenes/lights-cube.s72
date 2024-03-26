@@ -78,7 +78,7 @@
 {
 	"type":"LIGHT",
 	"name":"Spot",
-	"tint":[0.0, 1.0, 0.0],
+	"tint":[0.0, 0.0, 1.0],
 	"spot":{
 		"radius":0.5,
 		"power":50.0,
@@ -91,7 +91,7 @@
 {
 	"type":"LIGHT",
 	"name":"Sphere B",
-	"tint":[1.0, 0.0, 1.0],
+	"tint":[1.0, 1.0, 0.0],
 	"sphere":{
 		"radius":0.1,
 		"power":20.0,
