@@ -56,20 +56,24 @@ layout(binding = 6) uniform LightTransforms {
 layout(binding = 7) uniform LightArray {
 	Light arr[1000];
 } lights;
-struct LightNumInt
+struct PushConstants
 {
-    int lightNumInt;
+    int lightNum;
+	float cameraPosX;
+	float cameraPosY;
+	float cameraPosZ;
+	float pbrP;
 };
-layout( push_constant ) uniform LightNum
+layout( push_constant ) uniform PushConsts
 {
-	LightNumInt inLightNum;
+	PushConstants inConsts;
 };
 
 layout(location = 0) out vec4 outColor;
 
 void main() {
 	vec3 inLights[100];
-	int numLights = inLightNum.lightNumInt;
+	int numLights = inConsts.lightNum;
 	for(int lightInd = 0; lightInd < numLights; lightInd++){
         inLights[lightInd] = -(lightTransforms.arr[lightInd] * position).xyz;
     }
@@ -81,7 +85,8 @@ void main() {
 		useNormal = normalize(tbn * useNormal);
 	}
 	float normDot = dot(useNormal,vec3(0,0,1));
-   vec3 light = mix(vec3(0,0,0),vec3(1,1,1),0.75 + 0.25*dot(useNormal,vec3(0,0,1)));
+	if (normDot < 0) normDot = 0;
+	vec3 light = mix(vec3(0,0,0),vec3(1,1,1),0.75 + 0.25*dot(useNormal,vec3(0,0,1)));
 	if(material.type == 2){ //Diffuse
 		vec3 directLight = vec3(0,0,0);
 		for(int lightInd = 0; lightInd < numLights; lightInd++){
@@ -129,7 +134,72 @@ void main() {
 	else if(material.type == 3 || material.type == 4){
 		outColor = vec4(fragColor, 1.0);
 	}
-	else if(material.type == 1){
+	else if(material.type == 1){ //PBR
+
+		float roughness; 
+		if(material.useValueRoughness != 0){
+			roughness = material.roughness;
+		}
+		else{
+			roughness = texture(textures[material.roughnessTexture], texcoord).r;
+			roughness /= 255.f;
+		}
+		vec3 cameraPos = vec3(inConsts.cameraPosX,inConsts.cameraPosY,inConsts.cameraPosZ);
+		vec3 directLight = vec3(0,0,0);
+		for(int lightInd = 0; lightInd < numLights; lightInd++){
+			Light light = lights.arr[lightInd];
+			vec3 tint = vec3(light.tintR, light.tintG, light.tintB);
+			vec3 r = reflect(cameraPos - position.xyz, useNormal);
+			float p = inConsts.pbrP;
+
+			if(light.type == 1){
+				vec3 centerToRay = dot(r,inLights[lightInd])*r - inLights[lightInd];
+				vec3 closestPoint = inLights[lightInd] + centerToRay*light.radius/length(centerToRay);
+				float phi = acos(dot(normalize(r),normalize(inLights[lightInd])));
+				float dist = length(closestPoint);
+				float alpha = roughness*roughness;
+				float alphaP = alpha + light.radius/2/dist;
+				float sphereNormalization = pow((alpha/alphaP),2);
+				float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
+				vec3 sphereContribution = vec3((light.power + 2)/(2*3.14159)*pow(phi,p)*fallOff)*tint;
+				directLight += sphereNormalization*sphereContribution;
+			}
+			else if(light.type == 2){
+				float solidAngle = 3.14159*(light.angle/2)*(light.angle/2);
+				float normalizeAngle = solidAngle/4/3.14159;
+				float phi = acos(dot(normalize(r),vec3(0,0,1)));
+				if(dot(useNormal,vec3(0,0,1)) < 0){
+					phi = 0;
+				}
+				vec3 sphereContribution = pow(phi,p)*light.strength*tint;
+				directLight += normalizeAngle * sphereContribution;
+			}
+			else if (light.type == 3){
+				
+				vec3 centerToRay = dot(r,inLights[lightInd])*r - inLights[lightInd];
+				vec3 closestPoint = inLights[lightInd] + centerToRay*light.radius/length(centerToRay);
+				float phi = acos(dot(normalize(r),normalize(inLights[lightInd])));
+				float dist = length(closestPoint);
+				float alpha = roughness*roughness;
+				float alphaP = alpha + light.radius/2/dist;
+				float sphereNormalization = pow((alpha/alphaP),2);
+				float angle = acos(dot(normalize(closestPoint),vec3(0,0,1)));
+				float blendLimit = light.fov*(1 - light.blend)/2;
+				float fovLimit = light.fov/2;
+				float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
+				vec3 sphereContribution = vec3((light.power + 2)/(2*3.14159)*pow(phi,p)*fallOff)*tint;
+				if(light.limit > dist){
+					if(angle < blendLimit){
+						directLight += normDot*sphereNormalization *sphereContribution;
+					}
+					else if(angle < fovLimit){
+						float midPoint = angle - blendLimit;
+						float blendFactor = (1- midPoint/(fovLimit - blendLimit));
+						directLight += normDot*vec3(blendFactor)*sphereNormalization * sphereContribution;
+					}
+				}
+			}
+		}
 	
 		vec3 albedo;
 		if(material.useValueAlbedo != 0){
@@ -138,7 +208,7 @@ void main() {
 		else{
 			albedo = texture(textures[material.albedoTexture], texcoord).rgb;
 		}
-		outColor = vec4(albedo,1);
+		outColor = vec4(albedo + directLight,1);
 	}
 	else{
 	//None and simple - also currently PBR

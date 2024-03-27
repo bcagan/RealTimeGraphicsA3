@@ -164,6 +164,17 @@ private:
 	void recreateSwapChain();
 	void cleanupSwapChain();
 
+
+
+	struct PushConst {
+		int numLights;
+		float camPosX;
+		float camPosY;
+		float camPosZ;
+		float pbrP;
+	};
+	PushConst pushConst;
+
 	//Vulkan data
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;

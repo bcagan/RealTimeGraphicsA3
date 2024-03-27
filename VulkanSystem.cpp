@@ -1224,7 +1224,7 @@ void VulkanSystem::createGraphicsPipelines() {
 
 	VkPushConstantRange numLightsConstant;
 	numLightsConstant.offset = 0;
-	numLightsConstant.size = sizeof(int);
+	numLightsConstant.size = sizeof(int) + sizeof(float)*3 + sizeof(float);
 	numLightsConstant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 
@@ -2814,9 +2814,7 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 	scissor.extent = swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-
-	int numLights = (int)lightPool.size();
-	vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(int), &numLights);
+	vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConst), &pushConst);
 
 	const VkDeviceSize offsets[] = { 0 };
 	if(useVertexBuffer) vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
@@ -2850,8 +2848,7 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 
-		int numLights = (int)lightPool.size();
-		vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(int), &numLights);
+		vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConst), &pushConst);
 
 		const VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexInstBuffer, offsets);
@@ -2896,7 +2893,13 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 	float_3 useMoveVec = movementMode == MOVE_DEBUG ? debugMoveVec : moveVec;
 	float_3 useDirVec = movementMode == MOVE_DEBUG ? debugDirVec : dirVec;
 	mat44<float> local = getCameraSpace(cameras[currentCamera], useMoveVec, useDirVec);
+	float_3 cameraPos = useMoveVec + cameras[currentCamera].forAnimate.translate;
 	local = cameras[currentCamera].perspective *local;
+	pushConst.numLights = (int)lightPool.size();
+	pushConst.camPosX = cameraPos.x;
+	pushConst.camPosY = cameraPos.y;
+	pushConst.camPosZ = cameraPos.z;
+	pushConst.pbrP = 3;
 	size_t pool = 0;
 	size_t matsize = sizeof(DrawMaterial);
 	for (; pool < transformPools.size() && useVertexBuffer; pool++) {
