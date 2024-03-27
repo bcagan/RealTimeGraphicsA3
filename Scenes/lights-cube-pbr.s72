@@ -62,7 +62,7 @@
 	"tint":[1.0, 1.0, 0.6],
 	"sun":{
 		"angle":0.00918,
-		"strength":0.12
+		"strength":0.2
 	},
 	"shadow":1024
 },

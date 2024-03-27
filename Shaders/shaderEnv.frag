@@ -191,11 +191,16 @@ void main() {
 				directLight += sphereNormalization*sphereContribution;
 			}
 			else if(light.type == 2){
+				r = normalize(r);
+				float angle = acos(dot(r,vec3(0,0,1)));
 				float solidAngle = 3.14159*(light.angle/2)*(light.angle/2);
 				float normalizeAngle = solidAngle/4/3.14159;
-				float phi = acos(dot(normalize(r),vec3(0,0,1)));
+				float phi = acos(dot(r,vec3(0,0,1)));
 				if(dot(useNormal,vec3(0,0,1)) < 0){
 					phi = 0;
+				}
+				else if(angle > light.angle / 2){
+					phi = light.angle/2;
 				}
 				vec3 sphereContribution = pow(phi,p)*light.strength*tint;
 				directLight += normalizeAngle * sphereContribution;
