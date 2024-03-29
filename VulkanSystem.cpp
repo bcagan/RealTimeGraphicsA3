@@ -3174,7 +3174,6 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 	mat44<float> local = getCameraSpace(cameras[currentCamera], useMoveVec, useDirVec);
 	float_3 cameraPos = useMoveVec + cameras[currentCamera].forAnimate.translate;
 	local = cameras[currentCamera].perspective * local;
-	//local = worldTolightPerspPool[2];
 	pushConst.numLights = (int)lightPool.size();
 	pushConst.camPosX = cameraPos.x;
 	pushConst.camPosY = cameraPos.y;
