@@ -26,7 +26,6 @@ layout(location = 6) out vec3 toEnvLight;
 layout(location = 7) out vec4 position;
 
 void main() {
-    mat4 spot = mat4(1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,1);
     vec4 worldPos = models.arr[inNode] * vec4(inPosition, 1.0);
-    gl_Position = spot*lights.arr[2] * worldPos;
+    gl_Position = lights.arr[2] * worldPos;
 }
