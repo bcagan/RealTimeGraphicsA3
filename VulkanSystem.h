@@ -186,17 +186,23 @@ private:
 	//Pipeline
 	std::vector<VkDeviceMemory> attachmentMemorys;
 	std::vector<VkImageView> attachmentImageViews;
+	std::vector<VkDeviceMemory> shadowMemorys;
+	std::vector<VkImageView> shadowImageViews;
 	VkPipelineLayout pipelineLayoutHDR;
 	VkPipelineLayout pipelineLayoutFinal;
+	VkPipelineLayout pipelineLayoutShadow;
 	VkPipeline graphicsPipeline;
 	VkPipeline graphicsInstPipeline;
 	VkPipeline graphicsPipelineFinal;
+	VkPipeline graphicsPipelineShadow;
+	VkPipeline graphicsInstPipelineShadow;
 	//Rendering
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 	VkSwapchainKHR swapChain;
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImage> attachmentImages;
+	std::vector<VkImage> shadowImages;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	std::vector<VkImageView> swapChainImageViews;
@@ -242,6 +248,11 @@ private:
 	std::vector<std::vector<VkDeviceMemory>> uniformBuffersMemoryTransformsPools;
 	std::vector<std::vector<void*>> uniformBuffersMappedTransformsPools;
 
+
+	std::vector<std::vector<VkBuffer>> uniformBuffersModelsPools;
+	std::vector<std::vector<VkDeviceMemory>> uniformBuffersMemoryModelsPools;
+	std::vector<std::vector<void*>> uniformBuffersMappedModelsPools;
+
 	std::vector<std::vector<VkBuffer>> uniformBuffersEnvironmentTransformsPools;
 	std::vector<std::vector<VkDeviceMemory>> uniformBuffersMemoryEnvironmentTransformsPools;
 	std::vector<std::vector<void*>> uniformBuffersMappedEnvironmentTransformsPools;
@@ -262,6 +273,10 @@ private:
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryLightTransformsPools;
 	std::vector< std::vector<void*>> uniformBuffersMappedLightTransformsPools;
 
+	std::vector< std::vector<VkBuffer>> uniformBuffersShadowLightsPools;
+	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryShadowLightsPools;
+	std::vector< std::vector<void*>> uniformBuffersMappedShadowLightsPools;
+
 	std::vector< std::vector<VkBuffer>> uniformBuffersMaterialsPools;
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryMaterialsPools;
 	std::vector< std::vector<void*>> uniformBuffersMappedMaterialsPools;
@@ -269,6 +284,8 @@ private:
 	std::vector<VkDescriptorSet> descriptorSetsHDR;
 	VkDescriptorPool descriptorPoolFinal;
 	std::vector<VkDescriptorSet> descriptorSetsFinal;
+	VkDescriptorPool descriptorPoolShadow;
+	std::vector<VkDescriptorSet> descriptorSetsShadow;
 	std::vector < VkDescriptorSetLayout> descriptorSetLayouts;
 	
 	//Camera
