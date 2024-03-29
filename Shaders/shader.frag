@@ -71,6 +71,7 @@ layout( push_constant ) uniform PushConsts
 {
 	PushConstants inConsts;
 };
+layout (input_attachment_index = 1, set = 0, binding = 8) uniform subpassInput shadowPass;
 
 
 layout(location = 0) out vec4 outColor;

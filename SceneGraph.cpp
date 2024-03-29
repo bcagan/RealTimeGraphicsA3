@@ -655,11 +655,13 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 		}
 	}
 
+	mat44<float> persp = mat44<float>::perspective(45.0, 16.0 / 9.0, 0.01, 1000);
+
 	//Handle case when a scene graph doesnt supply a proper camera
 	if (list.cameras.size() == 0) {
 		DrawCamera defaultCamera;
 		defaultCamera.name = "default";
-		defaultCamera.perspective = mat44<float>::perspective(45.0, 16.0/9.0, 0.01, 1000);
+		defaultCamera.perspective = persp;
 		defaultCamera.transform = mat44<float>(1);
 		defaultCamera.perspectiveInfo.aspect = 16.0 / 9.0;
 		defaultCamera.perspectiveInfo.vfov = 45.0;
@@ -670,6 +672,11 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 		defaultCamera.forAnimate.scale = float_3(1,1,1);
 		defaultCamera.forAnimate.translate = float_3(0,0,0);
 		list.cameras.push_back(defaultCamera);
+	}
+	//Make a perspective world to light vector for shadow mapping
+	list.worldToLightsPersp = std::vector<mat44<float>>();
+	for (mat44<float> transform : list.worldToLights) {
+		list.worldToLightsPersp.push_back(persp* transform);
 	}
 	std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();
 	if(verbose) std::cout << "MEASURE scene graph navigate: " << (float)

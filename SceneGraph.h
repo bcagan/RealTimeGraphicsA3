@@ -353,6 +353,7 @@ public:
 	std::optional<Texture> environmentMap;
 	std::vector<DrawLight> lights;
 	std::vector<mat44<float>> worldToLights;
+	std::vector<mat44<float>> worldToLightsPersp;
 };
 
 //A scene graph node parsed from a .s72 file

@@ -78,6 +78,7 @@ void VulkanSystem::initVulkan(DrawList drawList, std::string cameraName) {
 	rawEnvironment = drawList.environmentMap;
 	lightPool = drawList.lights;
 	worldTolightPool = drawList.worldToLights;
+	worldTolightPerspPool = drawList.worldToLightsPersp;
 
 	//Animate and bounding box
 	drawPools = drawList.drawPools;
@@ -3172,7 +3173,8 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 	float_3 useDirVec = movementMode == MOVE_DEBUG ? debugDirVec : dirVec;
 	mat44<float> local = getCameraSpace(cameras[currentCamera], useMoveVec, useDirVec);
 	float_3 cameraPos = useMoveVec + cameras[currentCamera].forAnimate.translate;
-	local = cameras[currentCamera].perspective *local;
+	local = cameras[currentCamera].perspective * local;
+	//local = worldTolightPerspPool[2];
 	pushConst.numLights = (int)lightPool.size();
 	pushConst.camPosX = cameraPos.x;
 	pushConst.camPosY = cameraPos.y;
@@ -3201,8 +3203,8 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 			sizeof(DrawLight) * lightPool.size());
 		memcpy(uniformBuffersMappedLightTransformsPools[pool][frame], worldTolightPool.data(),
 			sizeof(mat44<float>) * worldTolightPool.size());
-		memcpy(uniformBuffersMappedShadowLightsPools[pool][frame], worldTolightPool.data(),
-			sizeof(mat44<float>) * worldTolightPool.size());
+		memcpy(uniformBuffersMappedShadowLightsPools[pool][frame], worldTolightPerspPool.data(),
+			sizeof(mat44<float>) * worldTolightPerspPool.size());
 		memcpy(uniformBuffersMappedMaterialsPools[pool][frame], 
 			materialPools[pool].data(), matsize * materialPools[pool].size());
 	}

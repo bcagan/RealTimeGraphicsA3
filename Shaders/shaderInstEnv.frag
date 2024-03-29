@@ -32,7 +32,7 @@ layout(binding = 2) uniform Material {
 layout(binding = 3) uniform sampler2D textures[100];
 layout(binding = 4) uniform samplerCube cubes[100];
 layout(binding = 5) uniform sampler2D lut;
-layout(binding = 8) uniform samplerCube environmentTexture;
+layout(binding = 9) uniform samplerCube environmentTexture;
 struct Light {
 
 	int type;
@@ -69,6 +69,7 @@ layout( push_constant ) uniform PushConsts
 {
 	PushConstants inConsts;
 };
+layout (input_attachment_index = 1, set = 0, binding = 8) uniform subpassInput shadowPass;
 
 
 layout(location = 0) out vec4 outColor;

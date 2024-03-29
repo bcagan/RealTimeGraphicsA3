@@ -89,6 +89,7 @@ public:
 	//Materials and Lights
 	std::vector<DrawLight> lightPool;
 	std::vector<mat44<float>> worldTolightPool;
+	std::vector<mat44<float>> worldTolightPerspPool;
 	std::optional<Texture> rawEnvironment;
 	Texture LUT;
 	std::vector<std::vector<DrawMaterial>> materialPools;
