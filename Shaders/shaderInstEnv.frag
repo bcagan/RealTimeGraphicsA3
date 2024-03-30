@@ -36,7 +36,7 @@ layout(binding = 9) uniform samplerCube environmentTexture;
 struct Light {
 
 	int type;
-	// 0 none, 1 sun, 2 sphere, 3 spot
+	// 0 none, 1 sphere, 2 sun, 3 spot
 	float tintR;
 	float tintG;
 	float tintB;
@@ -100,16 +100,19 @@ void main() {
 			if(light.type == 1){
 				float normDot = dot(useNormal,normalize(inLights[lightInd]));
 				if (normDot < 0) normDot = 0;
+				else normDot = 1;
 				directLight += normDot * sphereContribution;
 			}
 			else if(light.type == 2){
 				float normDot = dot(useNormal,vec3(0,0,1));
-				if (normDot < 0) normDot = 0;
+				if (normDot < 0) normDot = 1 + normDot;
+				else normDot = 1;
 				directLight += normDot*light.strength*tint;
 			}
 			else if(light.type == 3){
 				float normDot = dot(useNormal,vec3(0,0,1));
 				if (normDot < 0) normDot = 0;
+				else normDot = 1;
 				float angle = acos(dot(normalize(inLights[lightInd]),vec3(0,0,1)));
 				float blendLimit = light.fov*(1 - light.blend)/2;
 				float fovLimit = light.fov/2;
@@ -197,6 +200,7 @@ void main() {
 				vec3 closestPoint = inLights[lightInd] + centerToRay*light.radius/length(centerToRay);
 				float normDot = dot(useNormal,normalize(closestPoint));
 				if (normDot < 0) normDot = 0;
+				else normDot = 1;
 				float phi = acos(dot(normalize(r),normalize(inLights[lightInd])));
 				float dist = length(closestPoint);
 				float alpha = roughness*roughness;
@@ -238,6 +242,7 @@ void main() {
 				if(light.limit > dist){
 					float normDot = dot(useNormal,vec3(0,0,1));
 					if (normDot < 0) normDot = 0;
+					else normDot = 1;
 					if(angle < blendLimit){
 						directLight += normDot*sphereNormalization *sphereContribution;
 					}

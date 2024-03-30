@@ -4,10 +4,14 @@
 layout(binding = 0) uniform Models {
     mat4 arr[1000];
 } models;
-layout(binding = 1) uniform Lights {
-    mat4 arr[100];
-} lights;
-
+struct PushConstants
+{
+    mat4 light;
+};
+layout( push_constant ) uniform PushConsts
+{
+	PushConstants inConsts;
+};
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inTangent;
@@ -27,5 +31,5 @@ layout(location = 7) out vec4 position;
 
 void main() {
     vec4 worldPos = models.arr[inNode] * vec4(inPosition, 1.0);
-    gl_Position = lights.arr[2] * worldPos;
+    gl_Position = inConsts.light * worldPos;
 }

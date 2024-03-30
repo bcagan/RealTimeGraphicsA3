@@ -427,10 +427,12 @@ void VulkanSystem::cleanup() {
 		}
 	}
 	vkDestroyDescriptorPool(device, descriptorPoolHDR, nullptr);
-	vkDestroyDescriptorPool(device, descriptorPoolShadow, nullptr);
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayouts[0], nullptr);
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayouts[1], nullptr);
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayouts[2], nullptr);
+	for (int i = 0; i < lightPool.size(); i++) {
+		vkDestroyDescriptorPool(device, descriptorPoolShadows[i], nullptr);
+	}
+	for (int i = 0; i < lightPool.size() + 2; i++) {
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayouts[i], nullptr);
+	}
 	for (int pool = 0; pool < indexBufferMemorys.size(); pool++) {
 		vkDestroyBuffer(device, indexBuffers[pool], nullptr);
 		vkFreeMemory(device, indexBufferMemorys[pool], nullptr);
@@ -445,7 +447,9 @@ void VulkanSystem::cleanup() {
 	vkFreeMemory(device, vertexInstBufferMemory, nullptr);
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipeline(device, graphicsInstPipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayoutShadow, nullptr);
+	for (int i = 0; i < lightPool.size(); i++) {
+		vkDestroyPipelineLayout(device, pipelineLayoutShadows[i], nullptr);
+	}
 	vkDestroyPipelineLayout(device, pipelineLayoutHDR, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayoutFinal, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
@@ -881,19 +885,26 @@ void VulkanSystem::createAttachments() {
 	extent.width = mainWindow->resolution.first;
 	extent.height = mainWindow->resolution.second;
 	attachmentImages.resize(swapChainImages.size());
-	shadowImages.resize(swapChainImages.size());
+	shadowImages.resize(lightPool.size());
 	attachmentMemorys.resize(swapChainImages.size());
-	shadowMemorys.resize(swapChainImages.size());
+	shadowMemorys.resize(lightPool.size());
+
+	for (int i = 0; i < lightPool.size(); i++) {
+		shadowImages[i].resize(swapChainImages.size());
+		shadowMemorys[i].resize(swapChainImages.size());
+	}
 	for (size_t image = 0; image < swapChainImages.size(); image++) {
 		createImage(extent.width, extent.height, VK_FORMAT_R32G32B32A32_SFLOAT,
 			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 			| VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, 0,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, attachmentImages[image],
 			attachmentMemorys[image]);
-		createImage(extent.width, extent.height, VK_FORMAT_D32_SFLOAT,
-			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowImages[image],
-			shadowMemorys[image]);
+		for (int i = 0; i < lightPool.size(); i++) {
+			createImage(extent.width, extent.height, VK_FORMAT_D32_SFLOAT,
+				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowImages[i][image],
+				shadowMemorys[i][image]);
+		}
 	}
 }
 
@@ -912,35 +923,49 @@ void VulkanSystem::createImageViews() {
 			attachmentImages[imageIndex], VK_FORMAT_R32G32B32A32_SFLOAT);
 	}
 	shadowImageViews.resize(shadowImages.size());
-	for (size_t imageIndex = 0; imageIndex < shadowImages.size();
-		imageIndex++) {
-		shadowImageViews[imageIndex] = createImageView(
-			shadowImages[imageIndex], VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+	for (int i = 0; i < shadowImages.size(); i++) {
+		shadowImageViews[i].resize(shadowImages[i].size());
+	}
+	for (size_t light = 0; light < shadowImages.size();
+		light++) {
+		for (int imageIndex = 0; imageIndex < shadowImages[light].size(); imageIndex++) {
+			shadowImageViews[light][imageIndex] = createImageView(
+				shadowImages[light][imageIndex], VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+		}
 	}
 }
+
 void VulkanSystem::createRenderPass() {
 
+	size_t subpassCount = 2 + lightPool.size();
+	size_t attachmentCount = 3 + lightPool.size();
 
 
-	VkAttachmentDescription shadowAttachment{};
-	shadowAttachment.format = VK_FORMAT_D32_SFLOAT;
-	shadowAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	shadowAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	shadowAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	shadowAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	shadowAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	shadowAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	shadowAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	std::vector<VkSubpassDescription> subpasses = std::vector<VkSubpassDescription>(subpassCount);
+	std::vector< VkAttachmentReference> shadowAttachmentRefs = std::vector< VkAttachmentReference>(lightPool.size());
+	std::vector< VkAttachmentDescription> shadowAttachments = std::vector<VkAttachmentDescription>(lightPool.size());
+	for (int i = 0; i < subpassCount; i++) subpasses[i] = {};
+	for (int i = 0; i < lightPool.size(); i++) {
 
-	VkAttachmentReference shadowAttachmentRef{};
-	shadowAttachmentRef.attachment = 1;
-	shadowAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		shadowAttachments[i] = {};
+		shadowAttachments[i].format = VK_FORMAT_D32_SFLOAT;
+		shadowAttachments[i].samples = VK_SAMPLE_COUNT_1_BIT;
+		shadowAttachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		shadowAttachments[i].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		shadowAttachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		shadowAttachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		shadowAttachments[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		shadowAttachments[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-	VkSubpassDescription subpassShadow{};
-	subpassShadow.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpassShadow.colorAttachmentCount = 0;
-	subpassShadow.pColorAttachments = nullptr;
-	subpassShadow.pDepthStencilAttachment = &shadowAttachmentRef;
+		shadowAttachmentRefs[i] = {};
+		shadowAttachmentRefs[i].attachment = 1 + i;
+		shadowAttachmentRefs[i].layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		subpasses[i].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpasses[i].colorAttachmentCount = 0;
+		subpasses[i].pColorAttachments = nullptr;
+		subpasses[i].pDepthStencilAttachment = &shadowAttachmentRefs[i];
+	}
 
 	VkAttachmentDescription colorAttachmentHDR{};
 	colorAttachmentHDR.format = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -953,7 +978,7 @@ void VulkanSystem::createRenderPass() {
 	colorAttachmentHDR.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VkAttachmentReference colorAttachmentRefHDR{};
-	colorAttachmentRefHDR.attachment = 3;
+	colorAttachmentRefHDR.attachment = attachmentCount - 1;
 	colorAttachmentRefHDR.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentDescription colorAttachmentFinal{};
@@ -981,78 +1006,87 @@ void VulkanSystem::createRenderPass() {
 	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	
 	VkAttachmentReference depthAttachmentRef{};
-	depthAttachmentRef.attachment = 2;
+	depthAttachmentRef.attachment = attachmentCount - 2;
 	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 
 	VkAttachmentReference inputShadowRef;
-	inputShadowRef.attachment = 1;
+	inputShadowRef.attachment = 3; //TODO make this multiple
 	inputShadowRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-	VkSubpassDescription subpassHDR{};
-	subpassHDR.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpassHDR.colorAttachmentCount = 1;
-	subpassHDR.pColorAttachments = &colorAttachmentRefHDR;
-	subpassHDR.pDepthStencilAttachment = &depthAttachmentRef;
-	subpassHDR.inputAttachmentCount = 1;
-	subpassHDR.pInputAttachments = &inputShadowRef;
+	subpasses[subpassCount - 2].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpasses[subpassCount - 2].colorAttachmentCount = 1;
+	subpasses[subpassCount - 2].pColorAttachments = &colorAttachmentRefHDR;
+	subpasses[subpassCount - 2].pDepthStencilAttachment = &depthAttachmentRef;
+	subpasses[subpassCount - 2].inputAttachmentCount = 1;
+	subpasses[subpassCount - 2].pInputAttachments = &inputShadowRef;
 
 	//https://www.saschawillems.de/blog/2018/07/19/vulkan-input-attachments-and-sub-passes/
 	VkAttachmentReference inputRef;
-	inputRef.attachment = 3;
+	inputRef.attachment = attachmentCount - 1;
 	inputRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-	VkSubpassDescription subpassFinal{};
-	subpassFinal.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpassFinal.colorAttachmentCount = 1;
-	subpassFinal.pColorAttachments = &colorAttachmentRefFinal;
-	subpassFinal.inputAttachmentCount = 1;
-	subpassFinal.pInputAttachments = &inputRef;
+	
+	subpasses[subpassCount - 1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpasses[subpassCount - 1].colorAttachmentCount = 1;
+	subpasses[subpassCount - 1].pColorAttachments = &colorAttachmentRefFinal;
+	subpasses[subpassCount - 1].inputAttachmentCount = 1;
+	subpasses[subpassCount - 1].pInputAttachments = &inputRef;
 
 	//Dependency for subpass before render pass
-	VkSubpassDependency dependencies[] = { {}, {}, {} };
-	//Shadow buffer pass to stencil pass
-	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependencies[0].dstSubpass = 0;
-	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependencies[0].srcAccessMask = 0;
-	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	std::vector<VkSubpassDependency> dependencies = std::vector<VkSubpassDependency>(subpassCount);
+	for (int i = 0; i < lightPool.size(); i++) {
+		int lastPass = i == 0 ? VK_SUBPASS_EXTERNAL : i - 1;
+		//Shadow buffer passes to stencil pass
+		dependencies[i] = {};
+		dependencies[i].srcSubpass = lastPass;
+		dependencies[i].dstSubpass = i;
+		dependencies[i].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependencies[i].srcAccessMask = 0;
+		dependencies[i].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependencies[i].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+			VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	}
 
 	//Stencil buffer pass to render pass
-	dependencies[1].srcSubpass = 0;
-	dependencies[1].dstSubpass = 1;
-	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+	dependencies[subpassCount - 2] = {};
+	dependencies[subpassCount - 2].srcSubpass = lightPool.size() == 0 ? VK_SUBPASS_EXTERNAL : subpassCount - 3;
+	dependencies[subpassCount - 2].dstSubpass = subpassCount - 2;
+	dependencies[subpassCount - 2].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
 		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+	dependencies[subpassCount - 2].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[subpassCount - 2].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
 		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+	dependencies[subpassCount - 2].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
 		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 	//Render pass to present pass
-	dependencies[2].srcSubpass = 1;
-	dependencies[2].dstSubpass = 2;
-	dependencies[2].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[2].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	dependencies[2].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	dependencies[2].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	dependencies[2].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencies[subpassCount - 1] = {};
+	dependencies[subpassCount - 1].srcSubpass = subpassCount - 2;
+	dependencies[subpassCount - 1].dstSubpass = subpassCount - 1;
+	dependencies[subpassCount - 1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[subpassCount - 1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	dependencies[subpassCount - 1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[subpassCount - 1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	dependencies[subpassCount - 1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-	VkSubpassDescription subpasses[] = {subpassShadow, subpassHDR, subpassFinal};
-
-	std::array<VkAttachmentDescription, 4> attachments = { colorAttachmentFinal, shadowAttachment, depthAttachment, colorAttachmentHDR };
+	std::vector<VkAttachmentDescription> attachments;
+	attachments.push_back(colorAttachmentFinal);
+	for (int i = 0; i < lightPool.size(); i++) {
+		attachments.push_back(shadowAttachments[i]);
+	}
+	attachments.push_back(depthAttachment);
+	attachments.push_back(colorAttachmentHDR);
 	VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.attachmentCount = attachments.size();
 	renderPassInfo.pAttachments = attachments.data();
-	renderPassInfo.subpassCount = 3;
-	renderPassInfo.pSubpasses = subpasses;
-	renderPassInfo.dependencyCount = 3;
-	renderPassInfo.pDependencies = dependencies;
+	renderPassInfo.subpassCount = subpasses.size();
+	renderPassInfo.pSubpasses = subpasses.data();
+	renderPassInfo.dependencyCount = dependencies.size();
+	renderPassInfo.pDependencies = dependencies.data();
 
 	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Was unable to create render pass in VulkanSystem.");
@@ -1061,32 +1095,33 @@ void VulkanSystem::createRenderPass() {
 
 void VulkanSystem::createDescriptorSetLayout() {
 
-	descriptorSetLayouts.resize(3);
+	size_t subpassCount = 2 + lightPool.size();
+	descriptorSetLayouts.resize(subpassCount);
 	
 
+	std::vector<VkDescriptorSetLayoutBinding> shadowBindings
+		= std::vector<VkDescriptorSetLayoutBinding>(lightPool.size());
+	for (int i = 0; i < lightPool.size(); i++) {
+		VkDescriptorSetLayoutBinding meshBinding{};
+		meshBinding.binding = 0;
+		meshBinding.descriptorCount = 1;
+		meshBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		meshBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-	VkDescriptorSetLayoutBinding meshBinding{};
-	meshBinding.binding = 0;
-	meshBinding.descriptorCount = 1;
-	meshBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	meshBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-	VkDescriptorSetLayoutBinding shadowLightBinding{};
-	shadowLightBinding.binding = 1;
-	shadowLightBinding.descriptorCount = 1;
-	shadowLightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	shadowLightBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-	VkDescriptorSetLayoutBinding shadowBindings[] = { meshBinding, shadowLightBinding };
+		shadowBindings[i] = meshBinding;
+	}
 
 
-	VkDescriptorSetLayoutCreateInfo layoutInfoShadow{};
-	layoutInfoShadow.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfoShadow.bindingCount = 2;
-	layoutInfoShadow.pBindings = shadowBindings;
-	if (vkCreateDescriptorSetLayout(
-		device, &layoutInfoShadow, nullptr, &descriptorSetLayouts[0]) != VK_SUCCESS) {
-		throw std::runtime_error("ERROR: Failed to create a descriptor set layout in Vulkan System.");
+
+	for (int i = 0; i < lightPool.size(); i++) {
+		VkDescriptorSetLayoutCreateInfo layoutInfoShadow{};
+		layoutInfoShadow.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfoShadow.bindingCount = 1;
+		layoutInfoShadow.pBindings = &shadowBindings[i];
+		if (vkCreateDescriptorSetLayout(
+			device, &layoutInfoShadow, nullptr, &descriptorSetLayouts[i]) != VK_SUCCESS) {
+			throw std::runtime_error("ERROR: Failed to create a descriptor set layout in Vulkan System.");
+		}
 	}
 	
 	VkDescriptorSetLayoutBinding transformBinding{};
@@ -1180,7 +1215,7 @@ void VulkanSystem::createDescriptorSetLayout() {
 	layoutInfo.bindingCount = rawEnvironment.has_value() ? 13 : 10;
 	layoutInfo.pBindings = bindings;
 	if (vkCreateDescriptorSetLayout(
-		device, &layoutInfo, nullptr, &descriptorSetLayouts[1]) != VK_SUCCESS) {
+		device, &layoutInfo, nullptr, &descriptorSetLayouts[subpassCount - 2]) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Failed to create a descriptor set layout in Vulkan System.");
 	}
 
@@ -1196,7 +1231,7 @@ void VulkanSystem::createDescriptorSetLayout() {
 	layoutInfoFinal.bindingCount = 1;
 	layoutInfoFinal.pBindings = &hdrBinding;
 	if (vkCreateDescriptorSetLayout(
-		device, &layoutInfoFinal, nullptr, &descriptorSetLayouts[2]) != VK_SUCCESS) {
+		device, &layoutInfoFinal, nullptr, &descriptorSetLayouts[subpassCount - 1]) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Failed to create a descriptor set layout in Vulkan System.");
 	}
 
@@ -1316,6 +1351,29 @@ void VulkanSystem::createGraphicsPipeline(std::string vertShader, std::string fr
 }
 
 void VulkanSystem::createGraphicsPipelines() {
+	size_t subpassCount = 2 + lightPool.size();
+	pipelineLayoutShadows.resize(lightPool.size());
+	graphicsPipelineShadows.resize(lightPool.size());
+	graphicsInstPipelineShadows.resize(lightPool.size());
+
+	for (int i = 0; i < lightPool.size(); i++) {
+
+		VkPushConstantRange lightTransformConstant;
+		lightTransformConstant.offset = 0;
+		lightTransformConstant.size = sizeof(mat44<float>);
+		lightTransformConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		VkPipelineLayoutCreateInfo pipelineLayoutInfoShadow{};
+		pipelineLayoutInfoShadow.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfoShadow.setLayoutCount = 1;
+		pipelineLayoutInfoShadow.pSetLayouts = &descriptorSetLayouts[i];
+		pipelineLayoutInfoShadow.pushConstantRangeCount = 1;
+		pipelineLayoutInfoShadow.pPushConstantRanges = &lightTransformConstant;
+		if (vkCreatePipelineLayout(device, &pipelineLayoutInfoShadow, nullptr, &pipelineLayoutShadows[i]) != VK_SUCCESS) {
+			throw std::runtime_error("ERROR: Unable to create pipeline layout in VulkanSystems.");
+		}
+		createGraphicsPipeline("/vertShadow.spv", "/fragShadow.spv", graphicsPipelineShadows[i], pipelineLayoutShadows[i], i);
+		createGraphicsPipeline("/vertShadowInst.spv", "/fragShadowInst.spv", graphicsInstPipelineShadows[i], pipelineLayoutShadows[i], i);
+	}
 
 	VkPushConstantRange numLightsConstant;
 	numLightsConstant.offset = 0;
@@ -1323,31 +1381,21 @@ void VulkanSystem::createGraphicsPipelines() {
 	numLightsConstant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 
-	VkPipelineLayoutCreateInfo pipelineLayoutInfoShadow{};
-	pipelineLayoutInfoShadow.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfoShadow.setLayoutCount = 1;
-	pipelineLayoutInfoShadow.pSetLayouts = &descriptorSetLayouts[0];
-	pipelineLayoutInfoShadow.pushConstantRangeCount = 0;
-	pipelineLayoutInfoShadow.pPushConstantRanges = nullptr;
-
 	VkPipelineLayoutCreateInfo pipelineLayoutInfoHDR{};
 	pipelineLayoutInfoHDR.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfoHDR.setLayoutCount = 1;
-	pipelineLayoutInfoHDR.pSetLayouts = &descriptorSetLayouts[1];
+	pipelineLayoutInfoHDR.pSetLayouts = &descriptorSetLayouts[subpassCount - 2];
 	pipelineLayoutInfoHDR.pushConstantRangeCount = 1;
 	pipelineLayoutInfoHDR.pPushConstantRanges = &numLightsConstant;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfoFinal{};
 	pipelineLayoutInfoFinal.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfoFinal.setLayoutCount = 1;
-	pipelineLayoutInfoFinal.pSetLayouts = &descriptorSetLayouts[2];
+	pipelineLayoutInfoFinal.pSetLayouts = &descriptorSetLayouts[subpassCount - 1];
 	pipelineLayoutInfoFinal.pushConstantRangeCount = 0;
 	pipelineLayoutInfoFinal.pPushConstantRanges = nullptr;
 
 
-	if (vkCreatePipelineLayout(device, &pipelineLayoutInfoShadow, nullptr, &pipelineLayoutShadow) != VK_SUCCESS) {
-		throw std::runtime_error("ERROR: Unable to create pipeline layout in VulkanSystems.");
-	}
 	if (vkCreatePipelineLayout(device, &pipelineLayoutInfoHDR, nullptr, &pipelineLayoutHDR) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Unable to create pipeline layout in VulkanSystems.");
 	}
@@ -1356,17 +1404,15 @@ void VulkanSystem::createGraphicsPipelines() {
 		throw std::runtime_error("ERROR: Unable to create pipeline layout in VulkanSystems.");
 	}
 
-	createGraphicsPipeline("/vertShadow.spv", "/fragShadow.spv", graphicsPipelineShadow, pipelineLayoutShadow, 0);
-	createGraphicsPipeline("/vertShadowInst.spv", "/fragShadowInst.spv", graphicsInstPipelineShadow, pipelineLayoutShadow, 0);
 	if (rawEnvironment.has_value()) {
-		createGraphicsPipeline("/vertEnv.spv", "/fragEnv.spv", graphicsPipeline, pipelineLayoutHDR, 1);
-		createGraphicsPipeline("/vertInstEnv.spv", "/fragInstEnv.spv", graphicsInstPipeline, pipelineLayoutHDR, 1);
+		createGraphicsPipeline("/vertEnv.spv", "/fragEnv.spv", graphicsPipeline, pipelineLayoutHDR, subpassCount-2);
+		createGraphicsPipeline("/vertInstEnv.spv", "/fragInstEnv.spv", graphicsInstPipeline, pipelineLayoutHDR, subpassCount - 2);
 	}
 	else {
-		createGraphicsPipeline("/vert.spv", "/frag.spv", graphicsPipeline, pipelineLayoutHDR, 1);
-		createGraphicsPipeline("/vertInst.spv", "/fragInst.spv", graphicsInstPipeline, pipelineLayoutHDR, 1);
+		createGraphicsPipeline("/vert.spv", "/frag.spv", graphicsPipeline, pipelineLayoutHDR, subpassCount - 2);
+		createGraphicsPipeline("/vertInst.spv", "/fragInst.spv", graphicsInstPipeline, pipelineLayoutHDR, subpassCount - 2);
 	}
-	createGraphicsPipeline("/vertQuad.spv", "/fragFinal.spv", graphicsPipelineFinal, pipelineLayoutFinal, 2);
+	createGraphicsPipeline("/vertQuad.spv", "/fragFinal.spv", graphicsPipelineFinal, pipelineLayoutFinal, subpassCount - 1);
 }
 
 VkShaderModule VulkanSystem::createShaderModule(const std::vector<char>& code) {
@@ -1385,13 +1431,19 @@ VkShaderModule VulkanSystem::createShaderModule(const std::vector<char>& code) {
 void VulkanSystem::createFramebuffers() {
 	swapChainFramebuffers.resize(swapChainImageViews.size());
 	for (size_t image = 0; image < swapChainImageViews.size(); image++) {
-		VkImageView attachments[] = { swapChainImageViews[image] , shadowImageViews[image], depthImageView, attachmentImageViews[image]};
+		std::vector<VkImageView> attachments;
+		attachments.push_back(swapChainImageViews[image]);
+		for (int i = 0; i < lightPool.size(); i++) {
+			attachments.push_back(shadowImageViews[i][image]);
+		}
+		attachments.push_back(depthImageView);
+		attachments.push_back(attachmentImageViews[image]);
 
 		VkFramebufferCreateInfo framebufferInfo{};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = renderPass;
-		framebufferInfo.attachmentCount = 4;
-		framebufferInfo.pAttachments = attachments;
+		framebufferInfo.attachmentCount = attachments.size();
+		framebufferInfo.pAttachments = attachments.data();
 		framebufferInfo.width = swapChainExtent.width;
 		framebufferInfo.height = swapChainExtent.height;
 		framebufferInfo.layers = 1;
@@ -2283,9 +2335,17 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 	uniformBuffersTransformsPools.resize(transformsSize);
 	uniformBuffersMemoryTransformsPools.resize(transformsSize);
 	uniformBuffersMappedTransformsPools.resize(transformsSize);
-	uniformBuffersModelsPools.resize(transformsSize);
-	uniformBuffersMemoryModelsPools.resize(transformsSize);
-	uniformBuffersMappedModelsPools.resize(transformsSize);
+
+
+
+	uniformBuffersModelsPools.resize(lightPool.size());
+	uniformBuffersMemoryModelsPools.resize(lightPool.size());
+	uniformBuffersMappedModelsPools.resize(lightPool.size());
+	for (int i = 0; i < lightPool.size(); i++) {
+		uniformBuffersModelsPools[i].resize(transformsSize);
+		uniformBuffersMemoryModelsPools[i].resize(transformsSize);
+		uniformBuffersMappedModelsPools[i].resize(transformsSize);
+	}
 	if (rawEnvironment.has_value()) {
 		uniformBuffersEnvironmentTransformsPools.resize(transformsSize);
 		uniformBuffersMemoryEnvironmentTransformsPools.resize(transformsSize);
@@ -2303,9 +2363,7 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 	uniformBuffersLightTransformsPools.resize(transformsSize);
 	uniformBuffersMemoryLightTransformsPools.resize(transformsSize);
 	uniformBuffersMappedLightTransformsPools.resize(transformsSize);
-	uniformBuffersShadowLightsPools.resize(transformsSize);
-	uniformBuffersMemoryShadowLightsPools.resize(transformsSize);
-	uniformBuffersMappedShadowLightsPools.resize(transformsSize);
+
 	uniformBuffersMaterialsPools.resize(transformsSize);
 	uniformBuffersMemoryMaterialsPools.resize(transformsSize);
 	uniformBuffersMappedMaterialsPools.resize(transformsSize);
@@ -2313,9 +2371,12 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 		uniformBuffersTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMemoryTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMappedTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
-		uniformBuffersModelsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
-		uniformBuffersMemoryModelsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
-		uniformBuffersMappedModelsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+
+		for (int i = 0; i < lightPool.size(); i++) {
+			uniformBuffersModelsPools[i][pool].resize(MAX_FRAMES_IN_FLIGHT);
+			uniformBuffersMemoryModelsPools[i][pool].resize(MAX_FRAMES_IN_FLIGHT);
+			uniformBuffersMappedModelsPools[i][pool].resize(MAX_FRAMES_IN_FLIGHT);
+		}
 		if (rawEnvironment.has_value()) {
 			uniformBuffersEnvironmentTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 			uniformBuffersMemoryEnvironmentTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
@@ -2333,9 +2394,6 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 		uniformBuffersLightTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMemoryLightTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMappedLightTransformsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
-		uniformBuffersShadowLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
-		uniformBuffersMemoryShadowLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
-		uniformBuffersMappedShadowLightsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMaterialsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMemoryMaterialsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMappedMaterialsPools[pool].resize(MAX_FRAMES_IN_FLIGHT);
@@ -2355,10 +2413,13 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 			VkDeviceSize bufferSizeLights = sizeof(Light) * lightPool.size();
 			VkDeviceSize bufferSizeLightTransforms = sizeof(mat44<float>) * lightPool.size();
 			VkDeviceSize bufferSizeMaterials = sizeof(DrawMaterial) * materialPools[pool].size();
-			createBuffer(bufferSizeTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersModelsPools[pool][frame], uniformBuffersMemoryModelsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryModelsPools[pool][frame], 0, bufferSizeTransforms, 0,
-				uniformBuffersMappedModelsPools[pool].data() + frame);
+			
+			for (int i = 0; i < lightPool.size(); i++) {
+				createBuffer(bufferSizeTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+					uniformBuffersModelsPools[i][pool][frame], uniformBuffersMemoryModelsPools[i][pool][frame], realloc);
+				vkMapMemory(device, uniformBuffersMemoryModelsPools[i][pool][frame], 0, bufferSizeTransforms, 0,
+					uniformBuffersMappedModelsPools[i][pool].data() + frame);
+			}
 			createBuffer(bufferSizeTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersTransformsPools[pool][frame], uniformBuffersMemoryTransformsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryTransformsPools[pool][frame], 0, bufferSizeTransforms, 0,
@@ -2385,10 +2446,6 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 				uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
 				uniformBuffersMappedLightTransformsPools[pool].data() + frame);
-			createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersShadowLightsPools[pool][frame], uniformBuffersMemoryShadowLightsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryShadowLightsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
-				uniformBuffersMappedShadowLightsPools[pool].data() + frame);
 			createBuffer(bufferSizeMaterials, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersMaterialsPools[pool][frame], uniformBuffersMemoryMaterialsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryMaterialsPools[pool][frame], 0, bufferSizeMaterials, 0,
@@ -2409,10 +2466,12 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 				uniformBuffersTransformsPools[pool][frame], uniformBuffersMemoryTransformsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryTransformsPools[pool][frame], 0, bufferSizeTransforms, 0,
 				uniformBuffersMappedTransformsPools[pool].data() + frame);
-			createBuffer(bufferSizeTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersModelsPools[pool][frame], uniformBuffersMemoryModelsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryModelsPools[pool][frame], 0, bufferSizeTransforms, 0,
-				uniformBuffersMappedModelsPools[pool].data() + frame);
+			for (int i = 0; i < lightPool.size(); i++) {
+				createBuffer(bufferSizeTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+					uniformBuffersModelsPools[i][pool][frame], uniformBuffersMemoryModelsPools[i][pool][frame], realloc);
+				vkMapMemory(device, uniformBuffersMemoryModelsPools[i][pool][frame], 0, bufferSizeTransforms, 0,
+					uniformBuffersMappedModelsPools[i][pool].data() + frame);
+			}
 			if (rawEnvironment.has_value()) {
 				createBuffer(bufferSizeNormalTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 					uniformBuffersNormalTransformsPools[pool][frame], uniformBuffersMemoryNormalTransformsPools[pool][frame], realloc);
@@ -2435,10 +2494,6 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 				uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
 				uniformBuffersMappedLightTransformsPools[pool].data() + frame);
-			createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersShadowLightsPools[pool][frame], uniformBuffersMemoryShadowLightsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryShadowLightsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
-				uniformBuffersMappedShadowLightsPools[pool].data() + frame);
 			createBuffer(bufferSizeMaterials, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersMaterialsPools[pool][frame], uniformBuffersMemoryMaterialsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryMaterialsPools[pool][frame], 0, bufferSizeMaterials, 0,
@@ -2455,18 +2510,22 @@ void VulkanSystem::createDescriptorPool() {
 		transformsSize + transformInstPools.size() :
 		transformsSize;
 
-	VkDescriptorPoolSize poolSizeShadow{};
-	poolSizeShadow.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	poolSizeShadow.descriptorCount = MAX_FRAMES_IN_FLIGHT*(transformsSize + lightPool.size());
-	VkDescriptorPoolCreateInfo poolInfoShadow{};
-	poolInfoShadow.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfoShadow.poolSizeCount = 1;
-	poolInfoShadow.pPoolSizes = &poolSizeShadow;
-	poolInfoShadow.maxSets = MAX_FRAMES_IN_FLIGHT;
-	if (vkCreateDescriptorPool(device, &poolInfoShadow, nullptr, &descriptorPoolShadow)
-		!= VK_SUCCESS) {
-		throw std::runtime_error("ERROR: Unable to create a descriptor pool in Vulkan System.");
+	descriptorPoolShadows.resize(lightPool.size());
+	for (int i = 0; i < lightPool.size(); i++) {
+		VkDescriptorPoolSize poolSizeShadow{};
+		poolSizeShadow.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		poolSizeShadow.descriptorCount = MAX_FRAMES_IN_FLIGHT * (transformsSize);
+		VkDescriptorPoolCreateInfo poolInfoShadow{};
+		poolInfoShadow.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfoShadow.poolSizeCount = 1;
+		poolInfoShadow.pPoolSizes = &poolSizeShadow;
+		poolInfoShadow.maxSets = MAX_FRAMES_IN_FLIGHT;
+		if (vkCreateDescriptorPool(device, &poolInfoShadow, nullptr, &descriptorPoolShadows[i])
+			!= VK_SUCCESS) {
+			throw std::runtime_error("ERROR: Unable to create a descriptor pool in Vulkan System.");
+		}
 	}
+
 	std::array<VkDescriptorPoolSize,2> poolSizesHDR{};
 	poolSizesHDR[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizesHDR[0].descriptorCount = rawEnvironment.has_value() ? 
@@ -2506,23 +2565,25 @@ void VulkanSystem::createDescriptorSets() {
 	transformsSize = useInstancing ?
 		transformsSize + transformInstPools.size() :
 		transformsSize;
-
-	std::vector<VkDescriptorSetLayout> layoutsShadow(MAX_FRAMES_IN_FLIGHT*transformsSize, descriptorSetLayouts[0]);
-	VkDescriptorSetAllocateInfo allocateInfoShadow{};
-	allocateInfoShadow.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocateInfoShadow.descriptorPool = descriptorPoolShadow;
-	allocateInfoShadow.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
-	allocateInfoShadow.pSetLayouts = layoutsShadow.data();
-	descriptorSetsShadow.resize(MAX_FRAMES_IN_FLIGHT);
-	if (vkAllocateDescriptorSets(device, &allocateInfoShadow, descriptorSetsShadow.data())
-		!= VK_SUCCESS) {
-		throw std::runtime_error("ERROR: Unable to create descriptor sets in Vulkan System. Shadow.");
+	descriptorSetsShadows.resize(lightPool.size());
+	for (int i = 0; i < lightPool.size(); i++) {
+		std::vector<VkDescriptorSetLayout> layoutsShadow(MAX_FRAMES_IN_FLIGHT * transformsSize, descriptorSetLayouts[i]);
+		VkDescriptorSetAllocateInfo allocateInfoShadow{};
+		allocateInfoShadow.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocateInfoShadow.descriptorPool = descriptorPoolShadows[i];
+		allocateInfoShadow.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
+		allocateInfoShadow.pSetLayouts = layoutsShadow.data();
+		descriptorSetsShadows[i].resize(MAX_FRAMES_IN_FLIGHT);
+		if (vkAllocateDescriptorSets(device, &allocateInfoShadow, descriptorSetsShadows[i].data())
+			!= VK_SUCCESS) {
+			throw std::runtime_error("ERROR: Unable to create descriptor sets in Vulkan System. Shadow.");
+		}
 	}
 
 
 
 	std::vector<VkDescriptorSetLayout> layoutsHDR(MAX_FRAMES_IN_FLIGHT *
-		transformsSize, descriptorSetLayouts[1]);
+		transformsSize, descriptorSetLayouts[lightPool.size()]);
 	VkDescriptorSetAllocateInfo allocateInfoHDR{};
 	allocateInfoHDR.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocateInfoHDR.descriptorPool = descriptorPoolHDR;
@@ -2534,7 +2595,7 @@ void VulkanSystem::createDescriptorSets() {
 		throw std::runtime_error("ERROR: Unable to create descriptor sets in Vulkan System. HDR.");
 	}
 
-	std::vector<VkDescriptorSetLayout> layoutsFinal(MAX_FRAMES_IN_FLIGHT, descriptorSetLayouts[2]);
+	std::vector<VkDescriptorSetLayout> layoutsFinal(MAX_FRAMES_IN_FLIGHT, descriptorSetLayouts[lightPool.size() + 1]);
 	VkDescriptorSetAllocateInfo allocateInfoFinal{};
 	allocateInfoFinal.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocateInfoFinal.descriptorPool = descriptorPoolFinal;
@@ -2551,38 +2612,26 @@ void VulkanSystem::createDescriptorSets() {
 	size_t pool = 0;
 	for (; pool < transformPools.size() && useVertexBuffer; pool++) {
 		for (int frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++) {
-
-
-			//Shadow
-			VkDescriptorBufferInfo bufferInfoModels{};
-			bufferInfoModels.buffer = uniformBuffersModelsPools[pool][frame];
-			bufferInfoModels.offset = 0;
-			bufferInfoModels.range = sizeof(mat44<float>) * transformPools[pool].size();
-			VkDescriptorBufferInfo bufferInfoShadowLights{};
-			bufferInfoShadowLights.buffer = uniformBuffersShadowLightsPools[pool][frame];
-			bufferInfoShadowLights.offset = 0;
-			bufferInfoShadowLights.range = sizeof(mat44<float>) * lightPool.size();
-
-
 			size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + frame;
-			std::vector<VkWriteDescriptorSet> shadowWriteDescriptorSets = 
-				std::vector<VkWriteDescriptorSet>(2);
-			shadowWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			shadowWriteDescriptorSets[0].dstSet = descriptorSetsShadow[poolInd];
-			shadowWriteDescriptorSets[0].dstBinding = 0;
-			shadowWriteDescriptorSets[0].dstArrayElement = 0;
-			shadowWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			shadowWriteDescriptorSets[0].descriptorCount = 1;
-			shadowWriteDescriptorSets[0].pBufferInfo = &bufferInfoModels;
-			shadowWriteDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			shadowWriteDescriptorSets[1].dstSet = descriptorSetsShadow[poolInd];
-			shadowWriteDescriptorSets[1].dstBinding = 1;
-			shadowWriteDescriptorSets[1].dstArrayElement = 0;
-			shadowWriteDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			shadowWriteDescriptorSets[1].descriptorCount = 1;
-			shadowWriteDescriptorSets[1].pBufferInfo = &bufferInfoShadowLights;
-			vkUpdateDescriptorSets(device, 2, shadowWriteDescriptorSets.data(), 0, nullptr);
+			std::vector<VkWriteDescriptorSet> shadowWriteDescriptorSets =
+				std::vector<VkWriteDescriptorSet>(1);
 
+			for (int i = 0; i < lightPool.size(); i++) {
+				//Shadow
+				VkDescriptorBufferInfo bufferInfoModels{};
+				bufferInfoModels.buffer = uniformBuffersModelsPools[i][pool][frame];
+				bufferInfoModels.offset = 0;
+				bufferInfoModels.range = sizeof(mat44<float>) * transformPools[pool].size();
+
+				shadowWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				shadowWriteDescriptorSets[0].dstSet = descriptorSetsShadows[i][poolInd];
+				shadowWriteDescriptorSets[0].dstBinding = 0;
+				shadowWriteDescriptorSets[0].dstArrayElement = 0;
+				shadowWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				shadowWriteDescriptorSets[0].descriptorCount = 1;
+				shadowWriteDescriptorSets[0].pBufferInfo = &bufferInfoModels;
+				vkUpdateDescriptorSets(device, 1, shadowWriteDescriptorSets.data(), 0, nullptr);
+			}
 
 			//HDR
 			VkDescriptorBufferInfo bufferInfoTransforms{};
@@ -2669,7 +2718,7 @@ void VulkanSystem::createDescriptorSets() {
 
 			VkDescriptorImageInfo shadowMapDescriptor{};
 			shadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			shadowMapDescriptor.imageView = shadowImageViews[frame];
+			shadowMapDescriptor.imageView = shadowImageViews[2][frame]; //TODO: Make this more than one!
 			shadowMapDescriptor.sampler = VK_NULL_HANDLE;
 			writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
@@ -2745,35 +2794,26 @@ void VulkanSystem::createDescriptorSets() {
 	}
 	for (; useInstancing && pool < transformPools.size() + transformInstPoolsStore.size(); pool++) {
 		for (int frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++) {
-			//Shadow
-			VkDescriptorBufferInfo bufferInfoModels{};
-			bufferInfoModels.buffer = uniformBuffersModelsPools[pool][frame];
-			bufferInfoModels.offset = 0;
-			bufferInfoModels.range = sizeof(mat44<float>) * transformPools[pool].size();
-			VkDescriptorBufferInfo bufferInfoShadowLights{};
-			bufferInfoShadowLights.buffer = uniformBuffersShadowLightsPools[pool][frame];
-			bufferInfoShadowLights.offset = 0;
-			bufferInfoShadowLights.range = sizeof(mat44<float>) * lightPool.size();
-
-
 			size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + frame;
 			std::vector<VkWriteDescriptorSet> shadowWriteDescriptorSets =
-				std::vector<VkWriteDescriptorSet>(2);
-			shadowWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			shadowWriteDescriptorSets[0].dstSet = descriptorSetsHDR[poolInd];
-			shadowWriteDescriptorSets[0].dstBinding = 0;
-			shadowWriteDescriptorSets[0].dstArrayElement = 0;
-			shadowWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			shadowWriteDescriptorSets[0].descriptorCount = 1;
-			shadowWriteDescriptorSets[0].pBufferInfo = &bufferInfoModels;
-			shadowWriteDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			shadowWriteDescriptorSets[1].dstSet = descriptorSetsHDR[poolInd];
-			shadowWriteDescriptorSets[1].dstBinding = 1;
-			shadowWriteDescriptorSets[1].dstArrayElement = 0;
-			shadowWriteDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			shadowWriteDescriptorSets[1].descriptorCount = 1;
-			shadowWriteDescriptorSets[1].pBufferInfo = &bufferInfoShadowLights;
-			vkUpdateDescriptorSets(device, 2, shadowWriteDescriptorSets.data(), 0, nullptr);
+				std::vector<VkWriteDescriptorSet>(1);
+
+			for (int i = 0; i < lightPool.size(); i++) {
+				//Shadow
+				VkDescriptorBufferInfo bufferInfoModels{};
+				bufferInfoModels.buffer = uniformBuffersModelsPools[i][pool][frame];
+				bufferInfoModels.offset = 0;
+				bufferInfoModels.range = sizeof(mat44<float>) * transformPools[pool].size();
+
+				shadowWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				shadowWriteDescriptorSets[0].dstSet = descriptorSetsShadows[i][poolInd];
+				shadowWriteDescriptorSets[0].dstBinding = 0;
+				shadowWriteDescriptorSets[0].dstArrayElement = 0;
+				shadowWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				shadowWriteDescriptorSets[0].descriptorCount = 1;
+				shadowWriteDescriptorSets[0].pBufferInfo = &bufferInfoModels;
+				vkUpdateDescriptorSets(device, 1, shadowWriteDescriptorSets.data(), 0, nullptr);
+			}
 
 			VkDescriptorBufferInfo bufferInfoTransforms{};
 			bufferInfoTransforms.buffer = uniformBuffersTransformsPools[pool][frame];
@@ -2860,7 +2900,7 @@ void VulkanSystem::createDescriptorSets() {
 
 			VkDescriptorImageInfo shadowMapDescriptor{};
 			shadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			shadowMapDescriptor.imageView = shadowImageViews[frame];
+			shadowMapDescriptor.imageView = shadowImageViews[2][frame]; //TODO: Make this more than one!
 			shadowMapDescriptor.sampler = VK_NULL_HANDLE;
 			writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[6].dstSet = descriptorSetsFinal[frame];
@@ -3039,14 +3079,14 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
 	renderPassInfo.renderArea.offset = { 0,0 };
 	renderPassInfo.renderArea.extent = swapChainExtent;
-	VkClearValue clearColors[] = { 
-		{{0.0f, 0.0f, 0.0f, 1.0f}},
-		{{1.0f,0}},
-		{ {1.0f,0}} ,
-		{{0.0f, 0.0f, 0.0f, 1.0f}}
-	};
-	renderPassInfo.clearValueCount = 4;
-	renderPassInfo.pClearValues = clearColors;
+	std::vector<VkClearValue> clearColors;
+	clearColors.push_back({ {0.0f, 0.0f, 0.0f, 1.0f} });
+	for (int color = 0; color < lightPool.size() + 1; color++) 
+		clearColors.push_back({ {1.0f,0} });
+	clearColors.push_back({ {0.0f, 0.0f, 0.0f, 1.0f} });
+	
+	renderPassInfo.clearValueCount = clearColors.size();
+	renderPassInfo.pClearValues = clearColors.data();
 
 	//Viewport and Scissor are dyanmic, so set now
 	VkViewport viewport{};
@@ -3066,50 +3106,53 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	
-
-	//Shadow subpass;
-	{
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineShadow);
-		const VkDeviceSize offsets[] = { 0 };
-		if (useVertexBuffer) vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
-		for (size_t pool = 0; pool < transformPools.size() && pool < indexBuffersValid.size() && useVertexBuffer; pool++) {
-			if (indexBuffersValid[pool]) {
-				vkCmdBindIndexBuffer(commandBuffer, indexBuffers[pool], 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-					pipelineLayoutShadow, 0, 1, &descriptorSetsShadow[pool * MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
-				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indexPools[pool].size()), 1, 0, 0, 0);
+	for (int i = 0; i < lightPool.size(); i++) {
+		//Shadow subpass;
+		{
+			vkCmdPushConstants(commandBuffer, pipelineLayoutShadows[i], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat44<float>), &worldTolightPerspPool[i]);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineShadows[i]);
+			const VkDeviceSize offsets[] = { 0 };
+			if (useVertexBuffer) vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
+			for (size_t pool = 0; pool < transformPools.size() && pool < indexBuffersValid.size() && useVertexBuffer; pool++) {
+				if (indexBuffersValid[pool]) {
+					vkCmdBindIndexBuffer(commandBuffer, indexBuffers[pool], 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+						pipelineLayoutShadows[i], 0, 1, &descriptorSetsShadows[i][pool * MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
+					vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indexPools[pool].size()), 1, 0, 0, 0);
+				}
 			}
-		}
 
-	}
-	//Instanced version
-	if (useInstancing) {
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsInstPipelineShadow);;
-		const VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexInstBuffer, offsets);
-		for (size_t pool = 0; pool < transformInstPools.size(); pool++) {
-			if (transformInstPools[pool].size() == 0) continue;
-			vkCmdBindIndexBuffer(commandBuffer, indexInstBuffers[transformInstIndexPools[pool]], 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-				pipelineLayoutShadow, 0, 1, &descriptorSetsShadow[(pool + transformPools.size()) *
-				MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
-			vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(
-				indexInstPools[transformInstIndexPools[pool]].size()),
-				transformInstPools[pool].size(), 0, 0, 0);
 		}
+		//Instanced version
+		if (useInstancing) {
+			vkCmdPushConstants(commandBuffer, pipelineLayoutShadows[i], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat44<float>), &worldTolightPerspPool[i]);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsInstPipelineShadows[i]);
+			const VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexInstBuffer, offsets);
+			for (size_t pool = 0; pool < transformInstPools.size(); pool++) {
+				if (transformInstPools[pool].size() == 0) continue;
+				vkCmdBindIndexBuffer(commandBuffer, indexInstBuffers[transformInstIndexPools[pool]], 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+					pipelineLayoutShadows[i], 0, 1, &descriptorSetsShadows[i][(pool + transformPools.size()) *
+					MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
+				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(
+					indexInstPools[transformInstIndexPools[pool]].size()),
+					transformInstPools[pool].size(), 0, 0, 0);
+			}
 
+		}
+		vkCmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 	}
+
 
 
 
 
 	//Main subpass
-	vkCmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
-
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		//Begin recording commands
-		vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConst), &pushConst);
+		vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConst), &pushConstHDR);
 		const VkDeviceSize offsets[] = { 0 };
 		if (useVertexBuffer) vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
 		for (size_t pool = 0; pool < transformPools.size() && pool < indexBuffersValid.size() && useVertexBuffer; pool++) {
@@ -3127,7 +3170,7 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsInstPipeline);
 
 
-		vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConst), &pushConst);
+		vkCmdPushConstants(commandBuffer, pipelineLayoutHDR, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConst), &pushConstHDR);
 
 		const VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexInstBuffer, offsets);
@@ -3174,20 +3217,22 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 	mat44<float> local = getCameraSpace(cameras[currentCamera], useMoveVec, useDirVec);
 	float_3 cameraPos = useMoveVec + cameras[currentCamera].forAnimate.translate;
 	local = cameras[currentCamera].perspective * local;
-	pushConst.numLights = (int)lightPool.size();
-	pushConst.camPosX = cameraPos.x;
-	pushConst.camPosY = cameraPos.y;
-	pushConst.camPosZ = cameraPos.z;
-	pushConst.pbrP = 3;
+	pushConstHDR.numLights = (int)lightPool.size();
+	pushConstHDR.camPosX = cameraPos.x;
+	pushConstHDR.camPosY = cameraPos.y;
+	pushConstHDR.camPosZ = cameraPos.z;
+	pushConstHDR.pbrP = 3;
 	size_t pool = 0;
 	size_t matsize = sizeof(DrawMaterial);
 	for (; pool < transformPools.size() && useVertexBuffer; pool++) {
 		memcpy(uniformBuffersMappedTransformsPools[pool][frame],
 			transformPools[pool].data(), sizeof(mat44<float>) *
 			transformPools[pool].size());
-		memcpy(uniformBuffersMappedModelsPools[pool][frame],
-			transformPools[pool].data(), sizeof(mat44<float>) *
-			transformPools[pool].size());
+		for (int i = 0; i < lightPool.size(); i++) {
+			memcpy(uniformBuffersMappedModelsPools[i][pool][frame],
+				transformPools[pool].data(), sizeof(mat44<float>) *
+				transformPools[pool].size());
+		}
 		if (rawEnvironment.has_value()) {
 			memcpy(uniformBuffersMappedNormalTransformsPools[pool][frame],
 				transformNormalPools[pool].data(), sizeof(mat44<float>) *
@@ -3202,8 +3247,6 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 			sizeof(DrawLight) * lightPool.size());
 		memcpy(uniformBuffersMappedLightTransformsPools[pool][frame], worldTolightPool.data(),
 			sizeof(mat44<float>) * worldTolightPool.size());
-		memcpy(uniformBuffersMappedShadowLightsPools[pool][frame], worldTolightPerspPool.data(),
-			sizeof(mat44<float>) * worldTolightPerspPool.size());
 		memcpy(uniformBuffersMappedMaterialsPools[pool][frame], 
 			materialPools[pool].data(), matsize * materialPools[pool].size());
 	}
@@ -3214,9 +3257,11 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 		memcpy(uniformBuffersMappedTransformsPools[pool][frame],
 			transformInstPools[poolAdjusted].data(), sizeof(mat44<float>) *
 			transformInstPools[poolAdjusted].size());
-		memcpy(uniformBuffersMappedModelsPools[pool][frame],
-			transformInstPools[poolAdjusted].data(), sizeof(mat44<float>) *
-			transformInstPools[poolAdjusted].size());
+		for (int i = 0; i < lightPool.size(); i++) {
+			memcpy(uniformBuffersMappedModelsPools[i][pool][frame],
+				transformPools[pool].data(), sizeof(mat44<float>) *
+				transformPools[pool].size());
+		}
 		if (rawEnvironment.has_value()) {
 			memcpy(uniformBuffersMappedNormalTransformsPools[pool][frame],
 				transformNormalInstPools[poolAdjusted].data(), sizeof(mat44<float>) *
@@ -3230,8 +3275,6 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 		memcpy(uniformBuffersMappedLightsPools[pool][frame], lightPool.data(),
 			sizeof(DrawLight)* lightPool.size());
 		memcpy(uniformBuffersMappedLightTransformsPools[pool][frame], worldTolightPool.data(),
-			sizeof(mat44<float>) * worldTolightPool.size());
-		memcpy(uniformBuffersMappedShadowLightsPools[pool][frame], worldTolightPool.data(),
 			sizeof(mat44<float>) * worldTolightPool.size());
 		memcpy(uniformBuffersMappedMaterialsPools[pool][frame],
 			materialPools[pool].data(), matsize* materialPools[pool].size());

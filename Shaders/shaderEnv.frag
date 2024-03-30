@@ -39,7 +39,7 @@ layout(binding = 9) uniform samplerCube environmentTexture;
 struct Light {
 
 	int type;
-	// 0 none, 1 sun, 2 sphere, 3 spot
+	// 0 none, 1 sphere, 2 sun, 3 spot
 	float tintR;
 	float tintG;
 	float tintB;
@@ -106,7 +106,8 @@ void main() {
 			}
 			else if(light.type == 2){
 				float normDot = dot(useNormal,vec3(0,0,1));
-				if (normDot < 0) normDot = 0;
+				if (normDot < 0) normDot = 1 + normDot;
+				else normDot = 1;
 				directLight += normDot*light.strength*tint;
 			}
 			else if(light.type == 3){
