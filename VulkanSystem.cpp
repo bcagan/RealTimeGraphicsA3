@@ -2438,14 +2438,16 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 				uniformBuffersCamerasPools[pool][frame], uniformBuffersMemoryCamerasPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryCamerasPools[pool][frame], 0, bufferSizeCameras, 0,
 				uniformBuffersMappedCamerasPools[pool].data() + frame);
-			createBuffer(bufferSizeLights, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersLightsPools[pool][frame], uniformBuffersMemoryLightsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryLightsPools[pool][frame], 0, bufferSizeLights, 0,
-				uniformBuffersMappedLightsPools[pool].data() + frame);
-			createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
-				uniformBuffersMappedLightTransformsPools[pool].data() + frame);
+			if (lightPool.size() > 0) {
+				createBuffer(bufferSizeLights, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+					uniformBuffersLightsPools[pool][frame], uniformBuffersMemoryLightsPools[pool][frame], realloc);
+				vkMapMemory(device, uniformBuffersMemoryLightsPools[pool][frame], 0, bufferSizeLights, 0,
+					uniformBuffersMappedLightsPools[pool].data() + frame);
+				createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+					uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
+				vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
+					uniformBuffersMappedLightTransformsPools[pool].data() + frame);
+			}
 			createBuffer(bufferSizeMaterials, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersMaterialsPools[pool][frame], uniformBuffersMemoryMaterialsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryMaterialsPools[pool][frame], 0, bufferSizeMaterials, 0,
@@ -2486,14 +2488,18 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 				uniformBuffersCamerasPools[pool][frame], uniformBuffersMemoryCamerasPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryCamerasPools[pool][frame], 0, bufferSizeCameras, 0,
 				uniformBuffersMappedCamerasPools[pool].data() + frame);
-			createBuffer(bufferSizeLights, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersLightsPools[pool][frame], uniformBuffersMemoryLightsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryLightsPools[pool][frame], 0, bufferSizeLights, 0,
-				uniformBuffersMappedLightsPools[pool].data() + frame);
-			createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
-				uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
-			vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
-				uniformBuffersMappedLightTransformsPools[pool].data() + frame);
+			
+
+			if (lightPool.size() > 0) {
+				createBuffer(bufferSizeLights, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+					uniformBuffersLightsPools[pool][frame], uniformBuffersMemoryLightsPools[pool][frame], realloc);
+				vkMapMemory(device, uniformBuffersMemoryLightsPools[pool][frame], 0, bufferSizeLights, 0,
+					uniformBuffersMappedLightsPools[pool].data() + frame);
+				createBuffer(bufferSizeLightTransforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
+					uniformBuffersLightTransformsPools[pool][frame], uniformBuffersMemoryLightTransformsPools[pool][frame], realloc);
+				vkMapMemory(device, uniformBuffersMemoryLightTransformsPools[pool][frame], 0, bufferSizeLightTransforms, 0,
+					uniformBuffersMappedLightTransformsPools[pool].data() + frame);
+			}
 			createBuffer(bufferSizeMaterials, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, props,
 				uniformBuffersMaterialsPools[pool][frame], uniformBuffersMemoryMaterialsPools[pool][frame], realloc);
 			vkMapMemory(device, uniformBuffersMemoryMaterialsPools[pool][frame], 0, bufferSizeMaterials, 0,
@@ -2715,7 +2721,7 @@ void VulkanSystem::createDescriptorSets() {
 			writeDescriptorSets[5].descriptorCount = 1;
 			writeDescriptorSets[5].pImageInfo = &imageInfoLUT;
 
-
+			
 			VkDescriptorImageInfo shadowMapDescriptor{};
 			shadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			shadowMapDescriptor.imageView = shadowImageViews[2][frame]; //TODO: Make this more than one!
