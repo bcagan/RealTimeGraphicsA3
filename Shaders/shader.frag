@@ -35,6 +35,7 @@ layout(binding = 2) uniform MaterialArray {
 layout(binding = 3) uniform sampler2D textures[100];
 layout(binding = 4) uniform samplerCube cubes[100];
 layout(binding = 5) uniform sampler2D lut;
+layout(binding = 8) uniform sampler2D shadows[100];
 struct Light {
 
 	int type;

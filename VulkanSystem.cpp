@@ -924,14 +924,41 @@ void VulkanSystem::createImageViews() {
 			attachmentImages[imageIndex], VK_FORMAT_R32G32B32A32_SFLOAT);
 	}
 	shadowImageViews.resize(shadowImages.size());
+	shadowSamplers.resize(shadowImages.size());
 	for (int i = 0; i < shadowImages.size(); i++) {
 		shadowImageViews[i].resize(shadowImages[i].size());
+		shadowSamplers[i].resize(shadowImages[i].size());
 	}
 	for (size_t light = 0; light < shadowImages.size();
 		light++) {
 		for (int imageIndex = 0; imageIndex < shadowImages[light].size(); imageIndex++) {
 			shadowImageViews[light][imageIndex] = createImageView(
 				shadowImages[light][imageIndex], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+			
+
+			VkPhysicalDeviceProperties properties{};
+			vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+			VkSamplerCreateInfo samplerInfo{};
+			samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerInfo.magFilter = VK_FILTER_LINEAR;
+			samplerInfo.minFilter = VK_FILTER_LINEAR;
+			samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.anisotropyEnable = VK_TRUE;
+			samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy; //TODO: make this variable
+			samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+			samplerInfo.unnormalizedCoordinates = VK_FALSE;
+			samplerInfo.compareEnable = VK_FALSE;
+			samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+			samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			samplerInfo.mipLodBias = 0.f;
+			samplerInfo.minLod = 0;
+			samplerInfo.maxLod = 1;
+
+			if (vkCreateSampler(device, &samplerInfo, nullptr, &shadowSamplers[light][imageIndex]) != VK_SUCCESS) {
+				throw std::runtime_error("ERROR: Unable to create a sampler in VulkanSystem.");
+			}
 		}
 	}
 }
@@ -1168,21 +1195,30 @@ void VulkanSystem::createDescriptorSetLayout() {
 	lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	lightBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+
+
+	VkDescriptorSetLayoutBinding shadowMapBinding{};
+	shadowMapBinding.binding = 8;
+	shadowMapBinding.descriptorCount = 1;
+	shadowMapBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	shadowMapBinding.pImmutableSamplers = nullptr;
+	shadowMapBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
 	VkDescriptorSetLayoutBinding environmentBinding{};
-	environmentBinding.binding = 8;
+	environmentBinding.binding = 9;
 	environmentBinding.descriptorCount = 1;
 	environmentBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	environmentBinding.pImmutableSamplers = nullptr;
 	environmentBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding normTransformBinding{};
-	normTransformBinding.binding = 9;
+	normTransformBinding.binding = 10;
 	normTransformBinding.descriptorCount = 1;
 	normTransformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	normTransformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 	VkDescriptorSetLayoutBinding envTransformBinding{};
-	envTransformBinding.binding = 10;
+	envTransformBinding.binding = 11;
 	envTransformBinding.descriptorCount = 1;
 	envTransformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	envTransformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1190,11 +1226,11 @@ void VulkanSystem::createDescriptorSetLayout() {
 
 	VkDescriptorSetLayoutBinding bindings[] = { 
 		transformBinding, cameraBinding, materialBinding,textureBinding, 
-		cubeBinding, LUTBinding, lightTransformBinding, lightBinding, environmentBinding, normTransformBinding, envTransformBinding};
+		cubeBinding, LUTBinding, lightTransformBinding, lightBinding, shadowMapBinding, environmentBinding, normTransformBinding, envTransformBinding};
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = rawEnvironment.has_value() ? 11 : 8;
+	layoutInfo.bindingCount = rawEnvironment.has_value() ? 12 : 9;
 	layoutInfo.pBindings = bindings;
 	if (vkCreateDescriptorSetLayout(
 		device, &layoutInfo, nullptr, &descriptorSetLayouts[lightPool.size()]) != VK_SUCCESS) {
@@ -2545,8 +2581,8 @@ void VulkanSystem::createDescriptorPool() {
 		5 * (transformsSize)*MAX_FRAMES_IN_FLIGHT;
 	poolSizesHDR[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizesHDR[1].descriptorCount = rawEnvironment.has_value() ? 
-		(rawTextures.size() + rawCubes.size() + 1) * transformsSize*MAX_FRAMES_IN_FLIGHT : 
-		(rawTextures.size() + rawCubes.size()) * transformsSize * MAX_FRAMES_IN_FLIGHT;
+		(rawTextures.size() + rawCubes.size() + 1 + lightPool.size()) * transformsSize*MAX_FRAMES_IN_FLIGHT : 
+		(rawTextures.size() + rawCubes.size() + lightPool.size()) * transformsSize * MAX_FRAMES_IN_FLIGHT;
 	VkDescriptorPoolCreateInfo poolInfoHDR{};
 	poolInfoHDR.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfoHDR.poolSizeCount = poolSizesHDR.size();
@@ -2730,14 +2766,14 @@ void VulkanSystem::createDescriptorSets() {
 			if (rawEnvironment.has_value()) {
 				writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[6].dstBinding = 9;
+				writeDescriptorSets[6].dstBinding = 10;
 				writeDescriptorSets[6].dstArrayElement = 0;
 				writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				writeDescriptorSets[6].descriptorCount = 1;
 				writeDescriptorSets[6].pBufferInfo = &bufferInfoNormTransforms;
 				writeDescriptorSets[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[7].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[7].dstBinding = 10;
+				writeDescriptorSets[7].dstBinding = 11;
 				writeDescriptorSets[7].dstArrayElement = 0;
 				writeDescriptorSets[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				writeDescriptorSets[7].descriptorCount = 1;
@@ -2782,12 +2818,13 @@ void VulkanSystem::createDescriptorSets() {
 				imageInfoEnv.sampler = environmentSampler;
 				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[descSet].dstBinding = 8;
+				writeDescriptorSets[descSet].dstBinding = 9;
 				writeDescriptorSets[descSet].dstArrayElement = 0;
 				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				writeDescriptorSets[descSet].descriptorCount = 1;
 				writeDescriptorSets[descSet].pImageInfo = &imageInfoEnv;
 			}
+
 			vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
@@ -2896,25 +2933,23 @@ void VulkanSystem::createDescriptorSets() {
 			writeDescriptorSets[5].descriptorCount = 1;
 			writeDescriptorSets[5].pImageInfo = &imageInfoLUT;
 
-
-
 			//Continue working on this, including shadow descriptor sets
 
 			if (rawEnvironment.has_value()) {
-				writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[5].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[5].dstBinding = 9;
-				writeDescriptorSets[5].dstArrayElement = 0;
-				writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeDescriptorSets[5].descriptorCount = 1;
-				writeDescriptorSets[5].pBufferInfo = &bufferInfoNormTransforms;
 				writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
 				writeDescriptorSets[6].dstBinding = 10;
 				writeDescriptorSets[6].dstArrayElement = 0;
 				writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				writeDescriptorSets[6].descriptorCount = 1;
-				writeDescriptorSets[6].pBufferInfo = &bufferInfoEnvTransforms;
+				writeDescriptorSets[6].pBufferInfo = &bufferInfoNormTransforms;
+				writeDescriptorSets[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[7].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[7].dstBinding = 11;
+				writeDescriptorSets[7].dstArrayElement = 0;
+				writeDescriptorSets[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				writeDescriptorSets[7].descriptorCount = 1;
+				writeDescriptorSets[7].pBufferInfo = &bufferInfoEnvTransforms;
 			}
 
 			std::vector<VkDescriptorImageInfo> imageInfosTex = std::vector<VkDescriptorImageInfo>(rawTextures.size());
@@ -2958,7 +2993,7 @@ void VulkanSystem::createDescriptorSets() {
 				imageInfoEnv.sampler = environmentSampler;
 				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[descSet].dstBinding = 8;
+				writeDescriptorSets[descSet].dstBinding = 9;
 				writeDescriptorSets[descSet].dstArrayElement = 0;
 				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				writeDescriptorSets[descSet].descriptorCount = 1;
@@ -2987,7 +3022,7 @@ void VulkanSystem::createDescriptorSets() {
 }
 
 void VulkanSystem::createCommands() {
-	commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+	commandBuffers.resize((1 + lightPool.size()) * MAX_FRAMES_IN_FLIGHT);
 
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -3052,93 +3087,122 @@ void VulkanSystem::createDepthResources() {
 	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
-void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void VulkanSystem::recordCommandBufferShadow(VkCommandBuffer commandBuffer, uint32_t imageIndex, int lightIndex) {
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Unable to begin recording a command buffer in VulkanSystem.");
 	}
-	
-	for (int i = 0; i < lightPool.size(); i++) {
 
 
-		VkExtent2D shadowExtent;
-		uint32_t shadowRes = lightPool[i].shadowRes;
-		shadowExtent.width = shadowRes;
-		shadowExtent.height = shadowRes;
+
+	VkExtent2D shadowExtent;
+	uint32_t shadowRes = lightPool[lightIndex].shadowRes;
+	shadowExtent.width = shadowRes;
+	shadowExtent.height = shadowRes;
 
 
-		//Begin preparing command buffer render pass
-		VkRenderPassBeginInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = shadowPasses[i];
-		renderPassInfo.framebuffer = shadowFramebuffers[i][imageIndex];
-		renderPassInfo.renderArea.offset = { 0,0 };
-		renderPassInfo.renderArea.extent = shadowExtent;
-		std::vector<VkClearValue> clearColors;
-		clearColors.push_back({ {1.0f,1.0,1.0,0} });
+	//Begin preparing command buffer render pass
+	VkRenderPassBeginInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = shadowPasses[lightIndex];
+	renderPassInfo.framebuffer = shadowFramebuffers[lightIndex][imageIndex];
+	renderPassInfo.renderArea.offset = { 0,0 };
+	renderPassInfo.renderArea.extent = shadowExtent;
+	std::vector<VkClearValue> clearColors;
+	clearColors.push_back({ {1.0f,1.0,1.0,0} });
 
-		renderPassInfo.clearValueCount = clearColors.size();
-		renderPassInfo.pClearValues = clearColors.data();
-		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	renderPassInfo.clearValueCount = clearColors.size();
+	renderPassInfo.pClearValues = clearColors.data();
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport{};
-		VkRect2D scissor{};
-		//Viewport and Scissor are dyanmic, so set now
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(shadowRes);
-		viewport.height = static_cast<float>(shadowRes);
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+	VkViewport viewport{};
+	VkRect2D scissor{};
+	//Viewport and Scissor are dyanmic, so set now
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(shadowRes);
+	viewport.height = static_cast<float>(shadowRes);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-		scissor.offset = { 0, 0 };
-		scissor.extent = shadowExtent;
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-		//Shadow subpass;
-		{
-			vkCmdPushConstants(commandBuffer, pipelineLayoutShadows[i], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat44<float>), &worldTolightPerspPool[i]);
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineShadows[i]);
-			const VkDeviceSize offsets[] = { 0 };
-			if (useVertexBuffer) vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
-			for (size_t pool = 0; pool < transformPools.size() && pool < indexBuffersValid.size() && useVertexBuffer; pool++) {
-				if (indexBuffersValid[pool]) {
-					vkCmdBindIndexBuffer(commandBuffer, indexBuffers[pool], 0, VK_INDEX_TYPE_UINT32);
-					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-						pipelineLayoutShadows[i], 0, 1, &descriptorSetsShadows[i][pool * MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
-					vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indexPools[pool].size()), 1, 0, 0, 0);
-				}
-			}
-
-		}
-		//Instanced version
-		if (useInstancing) {
-			vkCmdPushConstants(commandBuffer, pipelineLayoutShadows[i], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat44<float>), &worldTolightPerspPool[i]);
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsInstPipelineShadows[i]);
-			const VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexInstBuffer, offsets);
-			for (size_t pool = 0; pool < transformInstPools.size(); pool++) {
-				if (transformInstPools[pool].size() == 0) continue;
-				vkCmdBindIndexBuffer(commandBuffer, indexInstBuffers[transformInstIndexPools[pool]], 0, VK_INDEX_TYPE_UINT32);
+	scissor.offset = { 0, 0 };
+	scissor.extent = shadowExtent;
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	//Shadow subpass;
+	{
+		vkCmdPushConstants(commandBuffer, pipelineLayoutShadows[lightIndex], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat44<float>), &worldTolightPerspPool[lightIndex]);
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineShadows[lightIndex]);
+		const VkDeviceSize offsets[] = { 0 };
+		if (useVertexBuffer) vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
+		for (size_t pool = 0; pool < transformPools.size() && pool < indexBuffersValid.size() && useVertexBuffer; pool++) {
+			if (indexBuffersValid[pool]) {
+				vkCmdBindIndexBuffer(commandBuffer, indexBuffers[pool], 0, VK_INDEX_TYPE_UINT32);
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-					pipelineLayoutShadows[i], 0, 1, &descriptorSetsShadows[i][(pool + transformPools.size()) *
-					MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
-				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(
-					indexInstPools[transformInstIndexPools[pool]].size()),
-					transformInstPools[pool].size(), 0, 0, 0);
+					pipelineLayoutShadows[lightIndex], 0, 1, &descriptorSetsShadows[lightIndex][pool * MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
+				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indexPools[pool].size()), 1, 0, 0, 0);
 			}
-
 		}
-		//END render pass
-		vkCmdEndRenderPass(commandBuffer);
+
+	}
+	//Instanced version
+	if (useInstancing) {
+		vkCmdPushConstants(commandBuffer, pipelineLayoutShadows[lightIndex], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat44<float>), &worldTolightPerspPool[lightIndex]);
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsInstPipelineShadows[lightIndex]);
+		const VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexInstBuffer, offsets);
+		for (size_t pool = 0; pool < transformInstPools.size(); pool++) {
+			if (transformInstPools[pool].size() == 0) continue;
+			vkCmdBindIndexBuffer(commandBuffer, indexInstBuffers[transformInstIndexPools[pool]], 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				pipelineLayoutShadows[lightIndex], 0, 1, &descriptorSetsShadows[lightIndex][(pool + transformPools.size()) *
+				MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
+			vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(
+				indexInstPools[transformInstIndexPools[pool]].size()),
+				transformInstPools[pool].size(), 0, 0, 0);
+		}
+
+	}
+	//END render pass
+	vkCmdEndRenderPass(commandBuffer);
+
+
+
+
+	VkImageMemoryBarrier barrier{};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.image = shadowImages[lightIndex][imageIndex];
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
+		&barrier);
+
+
+
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("ERROR: Unable to record command buffer in VulkanSystem.");
 	}
 
 
+}
 
-
-
-
+void VulkanSystem::recordCommandBufferMain(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+		throw std::runtime_error("ERROR: Unable to begin recording a command buffer in VulkanSystem.");
+	}
 
 	//Begin preparing command buffer render pass
 	VkRenderPassBeginInfo renderPassInfo{};
@@ -3203,10 +3267,10 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 			if (transformInstPools[pool].size() == 0) continue;
 			vkCmdBindIndexBuffer(commandBuffer, indexInstBuffers[transformInstIndexPools[pool]], 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-				pipelineLayoutHDR, 0, 1, &descriptorSetsHDR[(pool + transformPools.size()) * 
+				pipelineLayoutHDR, 0, 1, &descriptorSetsHDR[(pool + transformPools.size()) *
 				MAX_FRAMES_IN_FLIGHT + currentFrame], 0, nullptr);
 			vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(
-				indexInstPools[transformInstIndexPools[pool]].size()), 
+				indexInstPools[transformInstIndexPools[pool]].size()),
 				transformInstPools[pool].size(), 0, 0, 0);
 		}
 
@@ -3219,7 +3283,7 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayoutFinal, 0, 1, &descriptorSetsFinal[currentFrame], 0, NULL);
 	vkCmdDraw(commandBuffer, 6, 1, 0, 0); //Draw a quad in shader
-	
+
 	//END render pass
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -3306,10 +3370,14 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 	}
 }
 
+
 void VulkanSystem::drawFrame() {
 
-	uint32_t imageIndex;
+
+
 	VkResult result;
+
+	uint32_t imageIndex;
 	if (renderToWindow) {
 		vkWaitForFences(device, 1, inFlightFences.data() + currentFrame, VK_TRUE, UINT64_MAX);
 	
@@ -3332,13 +3400,60 @@ void VulkanSystem::drawFrame() {
 		imageIndex = currentFrame % MAX_FRAMES_IN_FLIGHT;
 	}
 
+
+	for (size_t pool = 0; pool < transformPools.size() + transformInstPoolsStore.size(); pool++) {
+		VkWriteDescriptorSet writeDescriptorSet{};
+		size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + currentFrame;
+
+		VkDescriptorImageInfo imageInfoShadow{};
+		imageInfoShadow.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfoShadow.imageView = shadowImageViews[4][currentFrame];
+		imageInfoShadow.sampler = shadowSamplers[4][currentFrame];
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = descriptorSetsHDR[poolInd];
+		writeDescriptorSet.dstBinding = 8;
+		writeDescriptorSet.dstArrayElement = 0;
+		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeDescriptorSet.descriptorCount = 1;
+		writeDescriptorSet.pImageInfo = &imageInfoShadow;
+		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+	}
+
 	createVertexBuffer(false);
 	createIndexBuffers(true, true);
-
-	vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
-
 	updateUniformBuffers(currentFrame);
+
+
+	for (int i = 0; i < lightPool.size(); i++) {
+
+		size_t commandBufferIndex = (lightPool.size() + 1) * currentFrame + i;
+
+		vkResetCommandBuffer(commandBuffers[commandBufferIndex], 0);
+		recordCommandBufferShadow(commandBuffers[commandBufferIndex], imageIndex,i);
+
+
+
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.waitSemaphoreCount = 0;
+		submitInfo.signalSemaphoreCount = 0;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = commandBuffers.data() + commandBufferIndex;
+
+		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+			throw std::runtime_error("failed to submit draw command buffer!");
+		}
+
+
+	}
+
+
+
+	initialFrame = false;
+	size_t commandBufferIndex = (lightPool.size() + 1) * currentFrame + lightPool.size();
+
+	vkResetCommandBuffer(commandBuffers[commandBufferIndex], 0);
+	recordCommandBufferMain(commandBuffers[commandBufferIndex], imageIndex);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -3355,7 +3470,7 @@ void VulkanSystem::drawFrame() {
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = commandBuffers.data() + currentFrame;
+		submitInfo.pCommandBuffers = commandBuffers.data() + (commandBufferIndex);
 		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
@@ -3372,7 +3487,7 @@ void VulkanSystem::drawFrame() {
 
 		presentInfo.pImageIndices = &imageIndex;
 
-		result = vkQueuePresentKHR(presentQueue, &presentInfo);
+		VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
 			recreateSwapChain();
 		}
@@ -3384,7 +3499,7 @@ void VulkanSystem::drawFrame() {
 		submitInfo.waitSemaphoreCount = 0;
 		submitInfo.signalSemaphoreCount = 0;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = commandBuffers.data() + currentFrame;
+		submitInfo.pCommandBuffers = commandBuffers.data() + (commandBufferIndex);
 
 		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit draw command buffer!");

@@ -151,7 +151,9 @@ private:
 	void createDepthResources();
 	void createDescriptorSets();
 	void createCommands();
-	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+	void recordCommandBufferShadow(VkCommandBuffer commandBuffer, uint32_t imageIndex, int lightIndex);
+	void recordCommandBufferMain(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+	void submitFrame(size_t frameIndex, uint32_t imageIndex, bool draw);
 	void updateUniformBuffers(uint32_t frame);
 	void createImage(uint32_t width, uint32_t height, VkFormat format, 
 		VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags,
@@ -228,12 +230,14 @@ private:
 	std::vector<VkBuffer> indexInstBuffers;
 	std::vector<VkDeviceMemory> indexInstBufferMemorys;
 	//Images
+	bool initialFrame = true;
 	std::vector<Texture> rawTextures;
 	std::vector<Texture> rawCubes;
 	std::vector<VkImage> textureImages;
 	std::vector<VkDeviceMemory> textureImageMemorys;
 	std::vector<VkImageView> textureImageViews;
 	std::vector<VkSampler> textureSamplers;
+	std::vector<std::vector<VkSampler >> shadowSamplers;
 	std::vector<VkImage> cubeImages;
 	std::vector<VkDeviceMemory> cubeImageMemorys;
 	std::vector<VkImageView> cubeImageViews;
