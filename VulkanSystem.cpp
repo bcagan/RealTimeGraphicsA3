@@ -105,7 +105,7 @@ void VulkanSystem::initVulkan(DrawList drawList, std::string cameraName) {
 	createSwapChain();
 	createAttachments();
 	createImageViews();
-	createRenderPass();
+	createRenderPasses();
 	createDescriptorSetLayout();
 	createGraphicsPipelines();
 	createDepthResources();
@@ -900,8 +900,9 @@ void VulkanSystem::createAttachments() {
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, attachmentImages[image],
 			attachmentMemorys[image]);
 		for (int i = 0; i < lightPool.size(); i++) {
-			createImage(extent.width, extent.height, VK_FORMAT_D32_SFLOAT,
-				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0,
+			uint32_t shadowRes = lightPool[i].shadowRes;
+			createImage(shadowRes, shadowRes, swapChainImageFormat,
+				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowImages[i][image],
 				shadowMemorys[i][image]);
 		}
@@ -930,42 +931,62 @@ void VulkanSystem::createImageViews() {
 		light++) {
 		for (int imageIndex = 0; imageIndex < shadowImages[light].size(); imageIndex++) {
 			shadowImageViews[light][imageIndex] = createImageView(
-				shadowImages[light][imageIndex], VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+				shadowImages[light][imageIndex], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	}
 }
 
-void VulkanSystem::createRenderPass() {
-
-	size_t subpassCount = 2 + lightPool.size();
-	size_t attachmentCount = 3 + lightPool.size();
-
-
-	std::vector<VkSubpassDescription> subpasses = std::vector<VkSubpassDescription>(subpassCount);
-	std::vector< VkAttachmentReference> shadowAttachmentRefs = std::vector< VkAttachmentReference>(lightPool.size());
-	std::vector< VkAttachmentDescription> shadowAttachments = std::vector<VkAttachmentDescription>(lightPool.size());
-	for (int i = 0; i < subpassCount; i++) subpasses[i] = {};
+void VulkanSystem::createRenderPasses() {
+	shadowPasses.resize(lightPool.size());
 	for (int i = 0; i < lightPool.size(); i++) {
+		VkAttachmentDescription shadowAttachment = {};
+		VkAttachmentReference shadowAttachmentRef = {};
+		VkSubpassDescription shadowSubpass = {};
+		shadowAttachment.format = swapChainImageFormat;
+		shadowAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		shadowAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		shadowAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		shadowAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		shadowAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		shadowAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		shadowAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-		shadowAttachments[i] = {};
-		shadowAttachments[i].format = VK_FORMAT_D32_SFLOAT;
-		shadowAttachments[i].samples = VK_SAMPLE_COUNT_1_BIT;
-		shadowAttachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		shadowAttachments[i].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		shadowAttachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		shadowAttachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		shadowAttachments[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		shadowAttachments[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		shadowAttachmentRef.attachment = 0;
+		shadowAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-		shadowAttachmentRefs[i] = {};
-		shadowAttachmentRefs[i].attachment = 1 + i;
-		shadowAttachmentRefs[i].layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		shadowSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		shadowSubpass.colorAttachmentCount = 1;
+		shadowSubpass.pColorAttachments = &shadowAttachmentRef;
 
-		subpasses[i].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpasses[i].colorAttachmentCount = 0;
-		subpasses[i].pColorAttachments = nullptr;
-		subpasses[i].pDepthStencilAttachment = &shadowAttachmentRefs[i];
+		VkSubpassDependency shadowDependency;
+		shadowDependency = {};
+		shadowDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		shadowDependency.dstSubpass = 0;
+		shadowDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		shadowDependency.srcAccessMask = 0;
+		shadowDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		shadowDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+			VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+
+		VkRenderPassCreateInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = 1;
+		renderPassInfo.pAttachments = &shadowAttachment;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &shadowSubpass;
+		renderPassInfo.dependencyCount = 1;
+		renderPassInfo.pDependencies = &shadowDependency;
+
+		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &shadowPasses[i]) != VK_SUCCESS) {
+			throw std::runtime_error("ERROR: Was unable to create render pass in VulkanSystem.");
+		}
 	}
+
+	std::vector<VkSubpassDescription> finalSubpasses = std::vector<VkSubpassDescription>(2);
+	for (int i = 0; i < 2; i++) finalSubpasses[i] = {};
 
 	VkAttachmentDescription colorAttachmentHDR{};
 	colorAttachmentHDR.format = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -978,7 +999,7 @@ void VulkanSystem::createRenderPass() {
 	colorAttachmentHDR.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VkAttachmentReference colorAttachmentRefHDR{};
-	colorAttachmentRefHDR.attachment = attachmentCount - 1;
+	colorAttachmentRefHDR.attachment = 2;
 	colorAttachmentRefHDR.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentDescription colorAttachmentFinal{};
@@ -1006,85 +1027,63 @@ void VulkanSystem::createRenderPass() {
 	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	
 	VkAttachmentReference depthAttachmentRef{};
-	depthAttachmentRef.attachment = attachmentCount - 2;
+	depthAttachmentRef.attachment = 1;
 	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-
-	VkAttachmentReference inputShadowRef;
-	inputShadowRef.attachment = 3; //TODO make this multiple
-	inputShadowRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	subpasses[subpassCount - 2].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpasses[subpassCount - 2].colorAttachmentCount = 1;
-	subpasses[subpassCount - 2].pColorAttachments = &colorAttachmentRefHDR;
-	subpasses[subpassCount - 2].pDepthStencilAttachment = &depthAttachmentRef;
-	subpasses[subpassCount - 2].inputAttachmentCount = 1;
-	subpasses[subpassCount - 2].pInputAttachments = &inputShadowRef;
+	finalSubpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	finalSubpasses[0].colorAttachmentCount = 1;
+	finalSubpasses[0].pColorAttachments = &colorAttachmentRefHDR;
+	finalSubpasses[0].pDepthStencilAttachment = &depthAttachmentRef;
+	finalSubpasses[0].inputAttachmentCount = 0;
+	finalSubpasses[0].pInputAttachments = nullptr;
 
 	//https://www.saschawillems.de/blog/2018/07/19/vulkan-input-attachments-and-sub-passes/
 	VkAttachmentReference inputRef;
-	inputRef.attachment = attachmentCount - 1;
+	inputRef.attachment = 2;
 	inputRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	
-	subpasses[subpassCount - 1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpasses[subpassCount - 1].colorAttachmentCount = 1;
-	subpasses[subpassCount - 1].pColorAttachments = &colorAttachmentRefFinal;
-	subpasses[subpassCount - 1].inputAttachmentCount = 1;
-	subpasses[subpassCount - 1].pInputAttachments = &inputRef;
+	finalSubpasses[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	finalSubpasses[1].colorAttachmentCount = 1;
+	finalSubpasses[1].pColorAttachments = &colorAttachmentRefFinal;
+	finalSubpasses[1].inputAttachmentCount = 1;
+	finalSubpasses[1].pInputAttachments = &inputRef;
 
 	//Dependency for subpass before render pass
-	std::vector<VkSubpassDependency> dependencies = std::vector<VkSubpassDependency>(subpassCount);
-	for (int i = 0; i < lightPool.size(); i++) {
-		int lastPass = i == 0 ? VK_SUBPASS_EXTERNAL : i - 1;
-		//Shadow buffer passes to stencil pass
-		dependencies[i] = {};
-		dependencies[i].srcSubpass = lastPass;
-		dependencies[i].dstSubpass = i;
-		dependencies[i].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependencies[i].srcAccessMask = 0;
-		dependencies[i].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependencies[i].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-			VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	}
+	std::vector<VkSubpassDependency> dependencies = std::vector<VkSubpassDependency>(2);
 
 	//Stencil buffer pass to render pass
-	dependencies[subpassCount - 2] = {};
-	dependencies[subpassCount - 2].srcSubpass = lightPool.size() == 0 ? VK_SUBPASS_EXTERNAL : subpassCount - 3;
-	dependencies[subpassCount - 2].dstSubpass = subpassCount - 2;
-	dependencies[subpassCount - 2].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+	dependencies[0] = {};
+	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
 		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependencies[subpassCount - 2].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	dependencies[subpassCount - 2].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+	dependencies[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
 		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependencies[subpassCount - 2].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+	dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
 		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 	//Render pass to present pass
-	dependencies[subpassCount - 1] = {};
-	dependencies[subpassCount - 1].srcSubpass = subpassCount - 2;
-	dependencies[subpassCount - 1].dstSubpass = subpassCount - 1;
-	dependencies[subpassCount - 1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[subpassCount - 1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	dependencies[subpassCount - 1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	dependencies[subpassCount - 1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	dependencies[subpassCount - 1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencies[1] = {};
+	dependencies[1].srcSubpass = 0;
+	dependencies[1].dstSubpass = 1;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 	std::vector<VkAttachmentDescription> attachments;
 	attachments.push_back(colorAttachmentFinal);
-	for (int i = 0; i < lightPool.size(); i++) {
-		attachments.push_back(shadowAttachments[i]);
-	}
 	attachments.push_back(depthAttachment);
 	attachments.push_back(colorAttachmentHDR);
 	VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.attachmentCount = attachments.size();
 	renderPassInfo.pAttachments = attachments.data();
-	renderPassInfo.subpassCount = subpasses.size();
-	renderPassInfo.pSubpasses = subpasses.data();
+	renderPassInfo.subpassCount = finalSubpasses.size();
+	renderPassInfo.pSubpasses = finalSubpasses.data();
 	renderPassInfo.dependencyCount = dependencies.size();
 	renderPassInfo.pDependencies = dependencies.data();
 
@@ -1095,12 +1094,8 @@ void VulkanSystem::createRenderPass() {
 
 void VulkanSystem::createDescriptorSetLayout() {
 
-	size_t subpassCount = 2 + lightPool.size();
-	descriptorSetLayouts.resize(subpassCount);
-	
+	descriptorSetLayouts.resize(2 + lightPool.size());
 
-	std::vector<VkDescriptorSetLayoutBinding> shadowBindings
-		= std::vector<VkDescriptorSetLayoutBinding>(lightPool.size());
 	for (int i = 0; i < lightPool.size(); i++) {
 		VkDescriptorSetLayoutBinding meshBinding{};
 		meshBinding.binding = 0;
@@ -1108,21 +1103,17 @@ void VulkanSystem::createDescriptorSetLayout() {
 		meshBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		meshBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-		shadowBindings[i] = meshBinding;
-	}
-
-
-
-	for (int i = 0; i < lightPool.size(); i++) {
 		VkDescriptorSetLayoutCreateInfo layoutInfoShadow{};
 		layoutInfoShadow.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		layoutInfoShadow.bindingCount = 1;
-		layoutInfoShadow.pBindings = &shadowBindings[i];
+		layoutInfoShadow.pBindings = &meshBinding;
 		if (vkCreateDescriptorSetLayout(
 			device, &layoutInfoShadow, nullptr, &descriptorSetLayouts[i]) != VK_SUCCESS) {
 			throw std::runtime_error("ERROR: Failed to create a descriptor set layout in Vulkan System.");
 		}
 	}
+
+
 	
 	VkDescriptorSetLayoutBinding transformBinding{};
 	transformBinding.binding = 0;
@@ -1177,30 +1168,21 @@ void VulkanSystem::createDescriptorSetLayout() {
 	lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	lightBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	VkDescriptorSetLayoutBinding shadowMapBinding{};
-	shadowMapBinding.binding = 8;
-	shadowMapBinding.descriptorCount = 1;
-	shadowMapBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	shadowMapBinding.pImmutableSamplers = nullptr;
-	shadowMapBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	//TODO update descriptor set accordingly
-
 	VkDescriptorSetLayoutBinding environmentBinding{};
-	environmentBinding.binding = 9;
+	environmentBinding.binding = 8;
 	environmentBinding.descriptorCount = 1;
 	environmentBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	environmentBinding.pImmutableSamplers = nullptr;
 	environmentBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding normTransformBinding{};
-	normTransformBinding.binding = 10;
+	normTransformBinding.binding = 9;
 	normTransformBinding.descriptorCount = 1;
 	normTransformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	normTransformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 	VkDescriptorSetLayoutBinding envTransformBinding{};
-	envTransformBinding.binding = 11;
+	envTransformBinding.binding = 10;
 	envTransformBinding.descriptorCount = 1;
 	envTransformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	envTransformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1208,14 +1190,14 @@ void VulkanSystem::createDescriptorSetLayout() {
 
 	VkDescriptorSetLayoutBinding bindings[] = { 
 		transformBinding, cameraBinding, materialBinding,textureBinding, 
-		cubeBinding, LUTBinding, lightTransformBinding, lightBinding, shadowMapBinding, environmentBinding, normTransformBinding, envTransformBinding};
+		cubeBinding, LUTBinding, lightTransformBinding, lightBinding, environmentBinding, normTransformBinding, envTransformBinding};
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = rawEnvironment.has_value() ? 13 : 10;
+	layoutInfo.bindingCount = rawEnvironment.has_value() ? 11 : 8;
 	layoutInfo.pBindings = bindings;
 	if (vkCreateDescriptorSetLayout(
-		device, &layoutInfo, nullptr, &descriptorSetLayouts[subpassCount - 2]) != VK_SUCCESS) {
+		device, &layoutInfo, nullptr, &descriptorSetLayouts[lightPool.size()]) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Failed to create a descriptor set layout in Vulkan System.");
 	}
 
@@ -1231,14 +1213,16 @@ void VulkanSystem::createDescriptorSetLayout() {
 	layoutInfoFinal.bindingCount = 1;
 	layoutInfoFinal.pBindings = &hdrBinding;
 	if (vkCreateDescriptorSetLayout(
-		device, &layoutInfoFinal, nullptr, &descriptorSetLayouts[subpassCount - 1]) != VK_SUCCESS) {
+		device, &layoutInfoFinal, nullptr, &descriptorSetLayouts[lightPool.size() + 1]) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Failed to create a descriptor set layout in Vulkan System.");
 	}
 
 
 }
 
-void VulkanSystem::createGraphicsPipeline(std::string vertShader, std::string fragShader, VkPipeline& pipeline, VkPipelineLayout& layout, int subpass) {
+void VulkanSystem::createGraphicsPipeline(std::string vertShader, 
+	std::string fragShader, VkPipeline& pipeline, VkPipelineLayout& layout, 
+	int subpass, VkRenderPass inRenderPass) {
 	std::vector<char> vertexShaderRawData = readFile((shaderDir + vertShader).c_str());
 	std::vector<char> fragmentShaderRawData = readFile((shaderDir + fragShader).c_str());
 
@@ -1339,7 +1323,7 @@ void VulkanSystem::createGraphicsPipeline(std::string vertShader, std::string fr
 	pipelineInfo.pDynamicState = &dynamicState;
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.layout = layout;
-	pipelineInfo.renderPass = renderPass;
+	pipelineInfo.renderPass = inRenderPass;
 	pipelineInfo.subpass = subpass;
 	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
 		throw std::runtime_error("ERROR: Unable to create graphics pipeline in VulkanSystem.");
@@ -1371,8 +1355,10 @@ void VulkanSystem::createGraphicsPipelines() {
 		if (vkCreatePipelineLayout(device, &pipelineLayoutInfoShadow, nullptr, &pipelineLayoutShadows[i]) != VK_SUCCESS) {
 			throw std::runtime_error("ERROR: Unable to create pipeline layout in VulkanSystems.");
 		}
-		createGraphicsPipeline("/vertShadow.spv", "/fragShadow.spv", graphicsPipelineShadows[i], pipelineLayoutShadows[i], i);
-		createGraphicsPipeline("/vertShadowInst.spv", "/fragShadowInst.spv", graphicsInstPipelineShadows[i], pipelineLayoutShadows[i], i);
+		createGraphicsPipeline("/vertShadow.spv", "/fragShadow.spv", graphicsPipelineShadows[i], pipelineLayoutShadows[i], 0, shadowPasses[i]);
+
+		createGraphicsPipeline("/vertShadowInst.spv", "/fragShadowInst.spv", graphicsInstPipelineShadows[i], pipelineLayoutShadows[i],0, shadowPasses[i]);
+
 	}
 
 	VkPushConstantRange numLightsConstant;
@@ -1384,14 +1370,14 @@ void VulkanSystem::createGraphicsPipelines() {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfoHDR{};
 	pipelineLayoutInfoHDR.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfoHDR.setLayoutCount = 1;
-	pipelineLayoutInfoHDR.pSetLayouts = &descriptorSetLayouts[subpassCount - 2];
+	pipelineLayoutInfoHDR.pSetLayouts = &descriptorSetLayouts[lightPool.size()];
 	pipelineLayoutInfoHDR.pushConstantRangeCount = 1;
 	pipelineLayoutInfoHDR.pPushConstantRanges = &numLightsConstant;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfoFinal{};
 	pipelineLayoutInfoFinal.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfoFinal.setLayoutCount = 1;
-	pipelineLayoutInfoFinal.pSetLayouts = &descriptorSetLayouts[subpassCount - 1];
+	pipelineLayoutInfoFinal.pSetLayouts = &descriptorSetLayouts[lightPool.size() + 1];
 	pipelineLayoutInfoFinal.pushConstantRangeCount = 0;
 	pipelineLayoutInfoFinal.pPushConstantRanges = nullptr;
 
@@ -1405,14 +1391,15 @@ void VulkanSystem::createGraphicsPipelines() {
 	}
 
 	if (rawEnvironment.has_value()) {
-		createGraphicsPipeline("/vertEnv.spv", "/fragEnv.spv", graphicsPipeline, pipelineLayoutHDR, subpassCount-2);
-		createGraphicsPipeline("/vertInstEnv.spv", "/fragInstEnv.spv", graphicsInstPipeline, pipelineLayoutHDR, subpassCount - 2);
+		createGraphicsPipeline("/vertEnv.spv", "/fragEnv.spv", graphicsPipeline, pipelineLayoutHDR, subpassCount-2,renderPass);
+
+		createGraphicsPipeline("/vertInstEnv.spv", "/fragInstEnv.spv", graphicsInstPipeline, pipelineLayoutHDR, 0, renderPass);
 	}
 	else {
-		createGraphicsPipeline("/vert.spv", "/frag.spv", graphicsPipeline, pipelineLayoutHDR, subpassCount - 2);
-		createGraphicsPipeline("/vertInst.spv", "/fragInst.spv", graphicsInstPipeline, pipelineLayoutHDR, subpassCount - 2);
+		createGraphicsPipeline("/vert.spv", "/frag.spv", graphicsPipeline, pipelineLayoutHDR, 0, renderPass);
+		createGraphicsPipeline("/vertInst.spv", "/fragInst.spv", graphicsInstPipeline, pipelineLayoutHDR, 0, renderPass);
 	}
-	createGraphicsPipeline("/vertQuad.spv", "/fragFinal.spv", graphicsPipelineFinal, pipelineLayoutFinal, subpassCount - 1);
+	createGraphicsPipeline("/vertQuad.spv", "/fragFinal.spv", graphicsPipelineFinal, pipelineLayoutFinal, 1, renderPass);
 }
 
 VkShaderModule VulkanSystem::createShaderModule(const std::vector<char>& code) {
@@ -1430,12 +1417,31 @@ VkShaderModule VulkanSystem::createShaderModule(const std::vector<char>& code) {
 
 void VulkanSystem::createFramebuffers() {
 	swapChainFramebuffers.resize(swapChainImageViews.size());
+	shadowFramebuffers.resize(lightPool.size());
+	for (int i = 0; i < lightPool.size(); i++) {
+		shadowFramebuffers[i].resize(swapChainImageViews.size());
+	}
 	for (size_t image = 0; image < swapChainImageViews.size(); image++) {
+		for (int i = 0; i < lightPool.size(); i++) {
+			VkImageView attachment = shadowImageViews[i][image];
+
+			VkFramebufferCreateInfo framebufferInfo{};
+			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			framebufferInfo.renderPass = shadowPasses[i];
+			framebufferInfo.attachmentCount = 1;
+			framebufferInfo.pAttachments = &attachment;
+			framebufferInfo.width = lightPool[i].shadowRes;
+			framebufferInfo.height = lightPool[i].shadowRes;
+			framebufferInfo.layers = 1;
+			if (vkCreateFramebuffer(device, &framebufferInfo, nullptr,
+				&(shadowFramebuffers[i][image])) != VK_SUCCESS) {
+				throw std::runtime_error("ERROR: Unable to create a framebuffer in VulkanSystem.");
+			}
+		}
+
+
 		std::vector<VkImageView> attachments;
 		attachments.push_back(swapChainImageViews[image]);
-		for (int i = 0; i < lightPool.size(); i++) {
-			attachments.push_back(shadowImageViews[i][image]);
-		}
 		attachments.push_back(depthImageView);
 		attachments.push_back(attachmentImageViews[image]);
 
@@ -2671,8 +2677,8 @@ void VulkanSystem::createDescriptorSets() {
 				bufferInfoEnvTransforms.range = sizeof(mat44<float>) * transformEnvironmentPools[pool].size();
 			}
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = rawEnvironment.has_value() ?
-				std::vector<VkWriteDescriptorSet>(10 + samplerSize) :
-				std::vector<VkWriteDescriptorSet>(7 + samplerSize);
+				std::vector<VkWriteDescriptorSet>(9 + samplerSize) :
+				std::vector<VkWriteDescriptorSet>(6 + samplerSize);
 			writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[0].dstSet = descriptorSetsHDR[poolInd];
 			writeDescriptorSets[0].dstBinding = 0;
@@ -2721,39 +2727,26 @@ void VulkanSystem::createDescriptorSets() {
 			writeDescriptorSets[5].descriptorCount = 1;
 			writeDescriptorSets[5].pImageInfo = &imageInfoLUT;
 
-			
-			VkDescriptorImageInfo shadowMapDescriptor{};
-			shadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			shadowMapDescriptor.imageView = shadowImageViews[2][frame]; //TODO: Make this more than one!
-			shadowMapDescriptor.sampler = VK_NULL_HANDLE;
-			writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
-			writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			writeDescriptorSets[6].descriptorCount = 1;
-			writeDescriptorSets[6].dstBinding = 8;
-			writeDescriptorSets[6].pImageInfo = &shadowMapDescriptor;
-			writeDescriptorSets[6].dstArrayElement = 0;
-
 			if (rawEnvironment.has_value()) {
+				writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[6].dstBinding = 9;
+				writeDescriptorSets[6].dstArrayElement = 0;
+				writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				writeDescriptorSets[6].descriptorCount = 1;
+				writeDescriptorSets[6].pBufferInfo = &bufferInfoNormTransforms;
 				writeDescriptorSets[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[7].dstSet = descriptorSetsHDR[poolInd];
 				writeDescriptorSets[7].dstBinding = 10;
 				writeDescriptorSets[7].dstArrayElement = 0;
 				writeDescriptorSets[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				writeDescriptorSets[7].descriptorCount = 1;
-				writeDescriptorSets[7].pBufferInfo = &bufferInfoNormTransforms;
-				writeDescriptorSets[8].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[8].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[8].dstBinding = 11;
-				writeDescriptorSets[8].dstArrayElement = 0;
-				writeDescriptorSets[8].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeDescriptorSets[8].descriptorCount = 1;
-				writeDescriptorSets[8].pBufferInfo = &bufferInfoEnvTransforms;
+				writeDescriptorSets[7].pBufferInfo = &bufferInfoEnvTransforms;
 			}
 
 			std::vector<VkDescriptorImageInfo> imageInfosTex = std::vector<VkDescriptorImageInfo>(rawTextures.size());
 			for (size_t tex = 0; tex < rawTextures.size(); tex++) {
-				size_t descSet = rawEnvironment.has_value() ? tex + 9 : tex + 7;
+				size_t descSet = rawEnvironment.has_value() ? tex + 8 : tex + 6;
 				imageInfosTex[tex].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosTex[tex].imageView = textureImageViews[tex];
 				imageInfosTex[tex].sampler = textureSamplers[tex];
@@ -2767,7 +2760,7 @@ void VulkanSystem::createDescriptorSets() {
 			}
 			std::vector<VkDescriptorImageInfo> imageInfosCube = std::vector<VkDescriptorImageInfo>(rawCubes.size());
 			for (size_t cube = 0; cube < rawCubes.size(); cube++) {
-				size_t descSet = rawEnvironment.has_value() ? cube + 9 : cube + 7;
+				size_t descSet = rawEnvironment.has_value() ? cube + 8 : cube + 6;
 				descSet += rawTextures.size();
 				imageInfosCube[cube].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosCube[cube].imageView = cubeImageViews[cube];
@@ -2783,13 +2776,13 @@ void VulkanSystem::createDescriptorSets() {
 
 			if (rawEnvironment.has_value()) {
 				VkDescriptorImageInfo imageInfoEnv;
-				size_t descSet =samplerSize + 9;
+				size_t descSet =samplerSize + 8;
 				imageInfoEnv.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfoEnv.imageView = environmentImageView;
 				imageInfoEnv.sampler = environmentSampler;
 				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[descSet].dstBinding = 9;
+				writeDescriptorSets[descSet].dstBinding = 8;
 				writeDescriptorSets[descSet].dstArrayElement = 0;
 				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				writeDescriptorSets[descSet].descriptorCount = 1;
@@ -2852,8 +2845,8 @@ void VulkanSystem::createDescriptorSets() {
 				bufferInfoEnvTransforms.range = sizeof(mat44<float>) * transformEnvironmentInstPoolsStore[pool - transformPools.size()].size();
 			}
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = rawEnvironment.has_value() ?
-				std::vector<VkWriteDescriptorSet>(10 + samplerSize) :
-				std::vector<VkWriteDescriptorSet>(7 + samplerSize);
+				std::vector<VkWriteDescriptorSet>(9 + samplerSize) :
+				std::vector<VkWriteDescriptorSet>(6 + samplerSize);
 
 			writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[0].dstSet = descriptorSetsHDR[poolInd];
@@ -2904,40 +2897,29 @@ void VulkanSystem::createDescriptorSets() {
 			writeDescriptorSets[5].pImageInfo = &imageInfoLUT;
 
 
-			VkDescriptorImageInfo shadowMapDescriptor{};
-			shadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			shadowMapDescriptor.imageView = shadowImageViews[2][frame]; //TODO: Make this more than one!
-			shadowMapDescriptor.sampler = VK_NULL_HANDLE;
-			writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSets[6].dstSet = descriptorSetsFinal[frame];
-			writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			writeDescriptorSets[6].descriptorCount = 1;
-			writeDescriptorSets[6].dstBinding = 8;
-			writeDescriptorSets[6].pImageInfo = &shadowMapDescriptor;
-			writeDescriptorSets[6].dstArrayElement = 0;
 
 			//Continue working on this, including shadow descriptor sets
 
 			if (rawEnvironment.has_value()) {
+				writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[5].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[5].dstBinding = 9;
+				writeDescriptorSets[5].dstArrayElement = 0;
+				writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				writeDescriptorSets[5].descriptorCount = 1;
+				writeDescriptorSets[5].pBufferInfo = &bufferInfoNormTransforms;
 				writeDescriptorSets[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[6].dstSet = descriptorSetsHDR[poolInd];
 				writeDescriptorSets[6].dstBinding = 10;
 				writeDescriptorSets[6].dstArrayElement = 0;
 				writeDescriptorSets[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				writeDescriptorSets[6].descriptorCount = 1;
-				writeDescriptorSets[6].pBufferInfo = &bufferInfoNormTransforms;
-				writeDescriptorSets[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[7].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[7].dstBinding = 11;
-				writeDescriptorSets[7].dstArrayElement = 0;
-				writeDescriptorSets[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeDescriptorSets[7].descriptorCount = 1;
-				writeDescriptorSets[7].pBufferInfo = &bufferInfoEnvTransforms;
+				writeDescriptorSets[6].pBufferInfo = &bufferInfoEnvTransforms;
 			}
 
 			std::vector<VkDescriptorImageInfo> imageInfosTex = std::vector<VkDescriptorImageInfo>(rawTextures.size());
 			for (size_t tex = 0; tex < rawTextures.size(); tex++) {
-				size_t descSet = rawEnvironment.has_value() ? tex + 9 : tex + 7;
+				size_t descSet = rawEnvironment.has_value() ? tex + 8 : tex + 6;
 				imageInfosTex[tex].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosTex[tex].imageView = textureImageViews[tex];
 				imageInfosTex[tex].sampler = textureSamplers[tex];
@@ -2952,7 +2934,7 @@ void VulkanSystem::createDescriptorSets() {
 
 			std::vector<VkDescriptorImageInfo> imageInfosCube = std::vector<VkDescriptorImageInfo>(rawCubes.size());
 			for (size_t cube = 0; cube < rawCubes.size(); cube++) {
-				size_t descSet = rawEnvironment.has_value() ? cube + 9 : cube + 7;
+				size_t descSet = rawEnvironment.has_value() ? cube + 8 : cube + 6;
 				descSet += rawTextures.size();
 				imageInfosCube[cube].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfosCube[cube].imageView = cubeImageViews[cube];
@@ -2970,13 +2952,13 @@ void VulkanSystem::createDescriptorSets() {
 
 			if (rawEnvironment.has_value()) {
 				VkDescriptorImageInfo imageInfoEnv;
-				size_t descSet = samplerSize + 9;
+				size_t descSet = samplerSize + 8;
 				imageInfoEnv.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfoEnv.imageView = environmentImageView;
 				imageInfoEnv.sampler = environmentSampler;
 				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[descSet].dstBinding = 9;
+				writeDescriptorSets[descSet].dstBinding = 8;
 				writeDescriptorSets[descSet].dstArrayElement = 0;
 				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				writeDescriptorSets[descSet].descriptorCount = 1;
@@ -3077,42 +3059,43 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 		throw std::runtime_error("ERROR: Unable to begin recording a command buffer in VulkanSystem.");
 	}
 	
-
-	//Begin preparing command buffer render pass
-	VkRenderPassBeginInfo renderPassInfo{};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = renderPass;
-	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
-	renderPassInfo.renderArea.offset = { 0,0 };
-	renderPassInfo.renderArea.extent = swapChainExtent;
-	std::vector<VkClearValue> clearColors;
-	clearColors.push_back({ {0.0f, 0.0f, 0.0f, 1.0f} });
-	for (int color = 0; color < lightPool.size() + 1; color++) 
-		clearColors.push_back({ {1.0f,0} });
-	clearColors.push_back({ {0.0f, 0.0f, 0.0f, 1.0f} });
-	
-	renderPassInfo.clearValueCount = clearColors.size();
-	renderPassInfo.pClearValues = clearColors.data();
-
-	//Viewport and Scissor are dyanmic, so set now
-	VkViewport viewport{};
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(swapChainExtent.width);
-	viewport.height = static_cast<float>(swapChainExtent.height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-	VkRect2D scissor{};
-	scissor.offset = { 0, 0 };
-	scissor.extent = swapChainExtent;
-	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-
-	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-	
 	for (int i = 0; i < lightPool.size(); i++) {
+
+
+		VkExtent2D shadowExtent;
+		uint32_t shadowRes = lightPool[i].shadowRes;
+		shadowExtent.width = shadowRes;
+		shadowExtent.height = shadowRes;
+
+
+		//Begin preparing command buffer render pass
+		VkRenderPassBeginInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = shadowPasses[i];
+		renderPassInfo.framebuffer = shadowFramebuffers[i][imageIndex];
+		renderPassInfo.renderArea.offset = { 0,0 };
+		renderPassInfo.renderArea.extent = shadowExtent;
+		std::vector<VkClearValue> clearColors;
+		clearColors.push_back({ {1.0f,1.0,1.0,0} });
+
+		renderPassInfo.clearValueCount = clearColors.size();
+		renderPassInfo.pClearValues = clearColors.data();
+		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		VkViewport viewport{};
+		VkRect2D scissor{};
+		//Viewport and Scissor are dyanmic, so set now
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(shadowRes);
+		viewport.height = static_cast<float>(shadowRes);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		scissor.offset = { 0, 0 };
+		scissor.extent = shadowExtent;
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 		//Shadow subpass;
 		{
 			vkCmdPushConstants(commandBuffer, pipelineLayoutShadows[i], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat44<float>), &worldTolightPerspPool[i]);
@@ -3147,12 +3130,48 @@ void VulkanSystem::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i
 			}
 
 		}
-		vkCmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+		//END render pass
+		vkCmdEndRenderPass(commandBuffer);
 	}
 
 
 
 
+
+
+
+	//Begin preparing command buffer render pass
+	VkRenderPassBeginInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = renderPass;
+	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+	renderPassInfo.renderArea.offset = { 0,0 };
+	renderPassInfo.renderArea.extent = swapChainExtent;
+	std::vector<VkClearValue> clearColors;
+	clearColors.push_back({ {0.0f, 0.0f, 0.0f, 1.0f} });
+	clearColors.push_back({ {1.0f,0} });
+	clearColors.push_back({ {0.0f, 0.0f, 0.0f, 1.0f} });
+
+	renderPassInfo.clearValueCount = clearColors.size();
+	renderPassInfo.pClearValues = clearColors.data();
+
+
+	VkViewport viewport{};
+	VkRect2D scissor{};
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	//Viewport and Scissor are dyanmic, so set now
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(swapChainExtent.width);
+	viewport.height = static_cast<float>(swapChainExtent.height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+	scissor.offset = { 0, 0 };
+	scissor.extent = swapChainExtent;
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 	//Main subpass
 	{

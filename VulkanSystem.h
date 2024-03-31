@@ -121,9 +121,9 @@ private:
 		VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D, int levels = 1);
 	void createImageViews();
 	void createDescriptorSetLayout();
-	void createGraphicsPipeline(std::string vertShader, std::string fragShader, VkPipeline& pipeline, VkPipelineLayout& layout, int subpass);
+	void createGraphicsPipeline(std::string vertShader, std::string fragShader, VkPipeline& pipeline, VkPipelineLayout& layout, int subpass, VkRenderPass inRenderPass);
 	void createGraphicsPipelines();
-	void createRenderPass();
+	void createRenderPasses();
 	VkShaderModule createShaderModule(const std::vector<char>& shader);
 	void createFramebuffers();
 	VkCommandBuffer beginSingleTimeCommands();
@@ -207,8 +207,10 @@ private:
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	std::vector<VkImageView> swapChainImageViews;
+	std::vector<VkRenderPass> shadowPasses;
 	VkRenderPass renderPass;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
+	std::vector<std::vector<VkFramebuffer>> shadowFramebuffers;
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffers;
 	VkImage depthImage;

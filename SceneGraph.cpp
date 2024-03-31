@@ -655,10 +655,10 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 		}
 	}
 
-	mat44<float> persp = mat44<float>::perspective(45.0, 16.0 / 9.0, 0.01, 1000);
 
 	//Handle case when a scene graph doesnt supply a proper camera
 	if (list.cameras.size() == 0) {
+		mat44<float> persp = mat44<float>::perspective(45.0, 16.0 / 9.0, 0.01, 1000);
 		DrawCamera defaultCamera;
 		defaultCamera.name = "default";
 		defaultCamera.perspective = persp;
@@ -675,7 +675,10 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 	}
 	//Make a perspective world to light vector for shadow mapping
 	list.worldToLightsPersp = std::vector<mat44<float>>();
-	for (mat44<float> transform : list.worldToLights) {
+	for (int i = 0; i < list.worldToLights.size(); i++) {
+		mat44<float> transform = list.worldToLights[i];
+		DrawLight light = list.lights[i];
+		mat44<float> persp = mat44<float>::perspective(light.fov/2, 1, 0.01, 1000);
 		list.worldToLightsPersp.push_back(persp* transform);
 	}
 	std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();

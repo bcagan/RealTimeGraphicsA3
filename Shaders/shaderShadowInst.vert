@@ -32,4 +32,5 @@ layout(location = 7) out vec4 position;
 void main() {
     vec4 worldPos = models.arr[inNode] * vec4(inPosition, 1.0);
     gl_Position = inConsts.light * worldPos;
+    position = gl_Position;
 }
