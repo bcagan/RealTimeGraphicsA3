@@ -2,7 +2,7 @@
 {
 	"type":"SCENE",
 	"name":"Shadow Cube Scene",
-	"roots":[2,5,7,8,9]
+	"roots":[2,5,7]
 },
 {
 	"type":"NODE",
@@ -43,23 +43,11 @@
 	"spot":{
 		"radius":0.5,
 		"power":50.0,
-		"fov":0.3,
+		"fov":0.6,
 		"blend":0.2,
 		"limit":11.0
 	},
 	"shadow":256
-},
-{
-	"type":"NODE",
-	"name":"Spot Node COPY",
-	"translation":[0,1,5],
-	"light":6
-},
-{
-	"type":"NODE",
-	"name":"Spot Node COPY 2",
-	"translation":[0,-1,5],
-	"light":6
 },
 {
 	"type":"NODE",

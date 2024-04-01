@@ -976,6 +976,22 @@ void VulkanSystem::createRenderPasses() {
 		VkAttachmentDescription shadowAttachment = {};
 		VkAttachmentReference shadowAttachmentRef = {};
 		VkSubpassDescription shadowSubpass = {};
+
+
+		VkAttachmentDescription depthAttachment{};
+		depthAttachment.format = VK_FORMAT_D16_UNORM;
+		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentReference depthAttachmentRef{};
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 		//HERE
 		shadowAttachment.format = VK_FORMAT_B8G8R8A8_UNORM;
 		shadowAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -992,6 +1008,9 @@ void VulkanSystem::createRenderPasses() {
 		shadowSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		shadowSubpass.colorAttachmentCount = 1;
 		shadowSubpass.pColorAttachments = &shadowAttachmentRef;
+		shadowSubpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+		VkAttachmentDescription attachments[]{ shadowAttachment,depthAttachment };
 
 		VkSubpassDependency shadowDependency;
 		shadowDependency = {};
@@ -1008,8 +1027,8 @@ void VulkanSystem::createRenderPasses() {
 
 		VkRenderPassCreateInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = 1;
-		renderPassInfo.pAttachments = &shadowAttachment;
+		renderPassInfo.attachmentCount = 2;
+		renderPassInfo.pAttachments = attachments;
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &shadowSubpass;
 		renderPassInfo.dependencyCount = 1;
@@ -1467,13 +1486,13 @@ void VulkanSystem::createFramebuffers() {
 	}
 	for (size_t image = 0; image < swapChainImageViews.size(); image++) {
 		for (int i = 0; i < lightPool.size(); i++) {
-			VkImageView attachment = shadowImageViews[i][image];
+			VkImageView attachments[] = { shadowImageViews[i][image],shadowDepthImageViews[i]};
 
 			VkFramebufferCreateInfo framebufferInfo{};
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			framebufferInfo.renderPass = shadowPasses[i];
-			framebufferInfo.attachmentCount = 1;
-			framebufferInfo.pAttachments = &attachment;
+			framebufferInfo.attachmentCount = 2;
+			framebufferInfo.pAttachments = attachments;
 			framebufferInfo.width = lightPool[i].shadowRes;
 			framebufferInfo.height = lightPool[i].shadowRes;
 			framebufferInfo.layers = 1;
@@ -3093,6 +3112,17 @@ void VulkanSystem::createDepthResources() {
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
 	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	VkFormat shadowDepthFormat = VK_FORMAT_D16_UNORM;
+	shadowDepthImages.resize(lightPool.size());
+	shadowDepthImageViews.resize(lightPool.size());
+	shadowDepthImageMemorys.resize(lightPool.size());
+	for (int i = 0; i < lightPool.size(); i++) {
+		uint32_t shadowRes = lightPool[i].shadowRes;
+		createImage(shadowRes, shadowRes, shadowDepthFormat,
+			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowDepthImages[i], shadowDepthImageMemorys[i]);
+		shadowDepthImageViews[i] = createImageView(shadowDepthImages[i], shadowDepthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	}
 }
 
 void VulkanSystem::recordCommandBufferShadow(VkCommandBuffer commandBuffer, uint32_t imageIndex, int lightIndex) {
@@ -3119,6 +3149,7 @@ void VulkanSystem::recordCommandBufferShadow(VkCommandBuffer commandBuffer, uint
 	renderPassInfo.renderArea.extent = shadowExtent;
 	std::vector<VkClearValue> clearColors;
 	clearColors.push_back({ {1.0f,1.0,1.0,0} });
+	clearColors.push_back({ {1.0f,0} });
 
 	renderPassInfo.clearValueCount = clearColors.size();
 	renderPassInfo.pClearValues = clearColors.data();

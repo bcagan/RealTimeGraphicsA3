@@ -218,6 +218,9 @@ private:
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
+	std::vector<VkImage> shadowDepthImages;
+	std::vector<VkDeviceMemory> shadowDepthImageMemorys;
+	std::vector<VkImageView> shadowDepthImageViews;
 	//Vertices
 	VkBuffer vertexBuffer;
 	bool useVertexBuffer;
