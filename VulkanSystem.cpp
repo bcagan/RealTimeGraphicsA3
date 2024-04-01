@@ -3445,8 +3445,8 @@ void VulkanSystem::drawFrame() {
 
 		VkDescriptorImageInfo imageInfoShadow{};
 		imageInfoShadow.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfoShadow.imageView = shadowImageViews[4][currentFrame];
-		imageInfoShadow.sampler = shadowSamplers[4][currentFrame];
+		imageInfoShadow.imageView = shadowImageViews[0][currentFrame]; //todo change this
+		imageInfoShadow.sampler = shadowSamplers[0][currentFrame];
 		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writeDescriptorSet.dstSet = descriptorSetsHDR[poolInd];
 		writeDescriptorSet.dstBinding = 8;
