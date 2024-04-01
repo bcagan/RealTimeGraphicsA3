@@ -650,7 +650,12 @@ SwapChainSupportDetails VulkanSystem::querySwapChainSupport(VkPhysicalDevice dev
 }
 
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+	std::cout << "available formats " << std::endl;
 	for (const VkSurfaceFormatKHR& availableFormat : availableFormats) {
+		std::cout << availableFormat.format << std::endl;
+	}
+	for (const VkSurfaceFormatKHR& availableFormat : availableFormats) {
+
 		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
 			availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
 			return availableFormat;
@@ -900,8 +905,9 @@ void VulkanSystem::createAttachments() {
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, attachmentImages[image],
 			attachmentMemorys[image]);
 		for (int i = 0; i < lightPool.size(); i++) {
+			//HERE
 			uint32_t shadowRes = lightPool[i].shadowRes;
-			createImage(shadowRes, shadowRes, swapChainImageFormat,
+			createImage(shadowRes, shadowRes, VK_FORMAT_B8G8R8A8_UNORM,
 				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowImages[i][image],
 				shadowMemorys[i][image]);
@@ -931,9 +937,10 @@ void VulkanSystem::createImageViews() {
 	}
 	for (size_t light = 0; light < shadowImages.size();
 		light++) {
+		//HERE
 		for (int imageIndex = 0; imageIndex < shadowImages[light].size(); imageIndex++) {
 			shadowImageViews[light][imageIndex] = createImageView(
-				shadowImages[light][imageIndex], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+				shadowImages[light][imageIndex], VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 			
 
 			VkPhysicalDeviceProperties properties{};
@@ -954,7 +961,7 @@ void VulkanSystem::createImageViews() {
 			samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 			samplerInfo.mipLodBias = 0.f;
 			samplerInfo.minLod = 0;
-			samplerInfo.maxLod = 1;
+			samplerInfo.maxLod = 0;
 
 			if (vkCreateSampler(device, &samplerInfo, nullptr, &shadowSamplers[light][imageIndex]) != VK_SUCCESS) {
 				throw std::runtime_error("ERROR: Unable to create a sampler in VulkanSystem.");
@@ -969,7 +976,8 @@ void VulkanSystem::createRenderPasses() {
 		VkAttachmentDescription shadowAttachment = {};
 		VkAttachmentReference shadowAttachmentRef = {};
 		VkSubpassDescription shadowSubpass = {};
-		shadowAttachment.format = swapChainImageFormat;
+		//HERE
+		shadowAttachment.format = VK_FORMAT_B8G8R8A8_UNORM;
 		shadowAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		shadowAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		shadowAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -3401,23 +3409,6 @@ void VulkanSystem::drawFrame() {
 	}
 
 
-	for (size_t pool = 0; pool < transformPools.size() + transformInstPoolsStore.size(); pool++) {
-		VkWriteDescriptorSet writeDescriptorSet{};
-		size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + currentFrame;
-
-		VkDescriptorImageInfo imageInfoShadow{};
-		imageInfoShadow.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfoShadow.imageView = shadowImageViews[4][currentFrame];
-		imageInfoShadow.sampler = shadowSamplers[4][currentFrame];
-		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.dstSet = descriptorSetsHDR[poolInd];
-		writeDescriptorSet.dstBinding = 8;
-		writeDescriptorSet.dstArrayElement = 0;
-		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		writeDescriptorSet.descriptorCount = 1;
-		writeDescriptorSet.pImageInfo = &imageInfoShadow;
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
-	}
 
 	createVertexBuffer(false);
 	createIndexBuffers(true, true);
@@ -3447,6 +3438,24 @@ void VulkanSystem::drawFrame() {
 
 	}
 
+
+	for (size_t pool = 0; pool < transformPools.size() + transformInstPoolsStore.size(); pool++) {
+		VkWriteDescriptorSet writeDescriptorSet{};
+		size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + currentFrame;
+
+		VkDescriptorImageInfo imageInfoShadow{};
+		imageInfoShadow.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfoShadow.imageView = shadowImageViews[4][currentFrame];
+		imageInfoShadow.sampler = shadowSamplers[4][currentFrame];
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = descriptorSetsHDR[poolInd];
+		writeDescriptorSet.dstBinding = 8;
+		writeDescriptorSet.dstArrayElement = 0;
+		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeDescriptorSet.descriptorCount = 1;
+		writeDescriptorSet.pImageInfo = &imageInfoShadow;
+		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+	}
 
 
 	initialFrame = false;
