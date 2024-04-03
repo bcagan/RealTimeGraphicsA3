@@ -22,10 +22,8 @@ layout(location = 4) in vec3 inColor;
 layout(location = 5) in int inNode;
 
 
-layout(location = 0) out vec4 position;
 
 void main() {
     vec4 worldPos = models.arr[inNode] * vec4(inPosition, 1.0);
     gl_Position = inConsts.light * worldPos;
-    position = gl_Position;
 }

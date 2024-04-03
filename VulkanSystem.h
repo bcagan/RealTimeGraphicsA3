@@ -283,6 +283,16 @@ private:
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryLightTransformsPools;
 	std::vector< std::vector<void*>> uniformBuffersMappedLightTransformsPools;
 
+	std::vector< std::vector<VkBuffer>> uniformBuffersLightPerspectivePools;
+	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryLightPerspectivePools;
+	std::vector< std::vector<void*>> uniformBuffersMappedLightPerspectivePools;
+
+	/*
+	std::vector< std::vector<VkBuffer>> uniformBuffersLightPerspectivePools;
+	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryLightPerspectivePools;
+	std::vector< std::vector<void*>> uniformBuffersMappedLightPerspectivePools;
+	*/
+
 	std::vector< std::vector<VkBuffer>> uniformBuffersMaterialsPools;
 	std::vector< std::vector<VkDeviceMemory >> uniformBuffersMemoryMaterialsPools;
 	std::vector< std::vector<void*>> uniformBuffersMappedMaterialsPools;

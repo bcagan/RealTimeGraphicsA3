@@ -678,7 +678,7 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 	for (int i = 0; i < list.worldToLights.size(); i++) {
 		mat44<float> transform = list.worldToLights[i];
 		DrawLight light = list.lights[i];
-		mat44<float> persp = mat44<float>::perspective(light.fov/2, 1, 0.01, 1000);
+		mat44<float> persp = mat44<float>::perspective(light.fov, 1, 0.01, 1000);
 		list.worldToLightsPersp.push_back(persp* transform);
 	}
 	std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();

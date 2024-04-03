@@ -7,10 +7,10 @@ layout(binding = 0) uniform Transforms {
 layout(binding = 1) uniform Camera {
     mat4 camera;
 } camera;
-layout(binding = 10) uniform NormalTransforms {
+layout(binding = 11) uniform NormalTransforms {
     mat4 arr[1000];
 } normTransforms;
-layout(binding = 11) uniform EnvironmentTransforms {
+layout(binding = 12) uniform EnvironmentTransforms {
     mat4 arr[1000];
 } envTransforms;
 

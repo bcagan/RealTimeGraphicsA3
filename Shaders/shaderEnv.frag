@@ -36,7 +36,7 @@ layout(binding = 3) uniform sampler2D textures[100];
 layout(binding = 4) uniform samplerCube cubes[100];
 layout(binding = 5) uniform sampler2D lut;
 layout(binding = 8) uniform sampler2D shadows[100];
-layout(binding = 0) uniform samplerCube environmentTexture;
+layout(binding = 10) uniform samplerCube environmentTexture;
 struct Light {
 
 	int type;
@@ -61,6 +61,9 @@ layout(binding = 6) uniform LightTransforms {
 layout(binding = 7) uniform LightArray {
 	Light arr[1000];
 } lights;
+layout(binding = 9) uniform LightPerspective {
+    mat4 arr[1000];
+} lightPerspective;
 struct PushConstants
 {
     int lightNum;
@@ -76,11 +79,23 @@ layout( push_constant ) uniform PushConsts
 
 layout(location = 0) out vec4 outColor;
 
+//https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
+float getShadowContribution(vec4 lightSpacePos){
+	vec3 projectedPos = lightSpacePos.xyz;
+	projectedPos = projectedPos * 0.5 + 0.5;
+	float sampledDepth = texture(shadows[0],projectedPos.xy).r;
+	float realDepth = projectedPos.z;
+	float shadow = realDepth - 0.0005 > sampledDepth ? 0.1 : 1.0;
+	return shadow;
+}
+
 void main() {
-	vec3 inLights[100];
+	vec3 toLight[100];
+	vec4 lightSpace[100];
 	int numLights = inConsts.lightNum;
 	for(int lightInd = 0; lightInd < numLights; lightInd++){
-        inLights[lightInd] = -(lightTransforms.arr[lightInd] * position).xyz;
+        lightSpace[lightInd] = lightPerspective.arr[lightInd]*position;
+        toLight[lightInd] = -(lightTransforms.arr[lightInd] * position).xyz;
     }
 	Material material = materials.arr[nodeInd];
 	vec3 useNormal = normal;
@@ -96,11 +111,13 @@ void main() {
 		for(int lightInd = 0; lightInd < numLights; lightInd++){
 			Light light = lights.arr[lightInd];
 			vec3 tint = vec3(light.tintR, light.tintG, light.tintB);
-			float dist = length(inLights[lightInd]);
+			float dist = length(toLight[lightInd]);
 			float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
 			vec3 sphereContribution = vec3(light.power*fallOff)*tint;
+			float shadowContribution = getShadowContribution(lightSpace[0]);
+
 			if(light.type == 1){
-				float normDot = dot(useNormal,normalize(inLights[lightInd]));
+				float normDot = dot(useNormal,normalize(toLight[lightInd]));
 				if (normDot < 0) normDot = 0;
 				directLight += normDot * sphereContribution;
 			}
@@ -113,17 +130,17 @@ void main() {
 			else if(light.type == 3){
 				float normDot = dot(useNormal,vec3(0,0,1));
 				if (normDot < 0) normDot = 0;
-				float angle = acos(dot(normalize(inLights[lightInd]),vec3(0,0,1)));
+				float angle = acos(dot(normalize(toLight[lightInd]),vec3(0,0,1)));
 				float blendLimit = light.fov*(1 - light.blend)/2;
 				float fovLimit = light.fov/2;
 				if(light.limit > dist){
 					if(angle < blendLimit){
-						directLight += normDot*sphereContribution;
+						directLight += shadowContribution*normDot*sphereContribution;
 					}
 					else if(angle < fovLimit){
 						float midPoint = angle - blendLimit;
 						float blendFactor = (1- midPoint/(fovLimit - blendLimit));
-						directLight += normDot*vec3(blendFactor) * sphereContribution;
+						directLight += shadowContribution*normDot*vec3(blendFactor) * sphereContribution;
 					}
 				}
 			}
@@ -183,13 +200,14 @@ void main() {
 			vec3 tint = vec3(light.tintR, light.tintG, light.tintB);
 			vec3 r = reflect(cameraPos - position.xyz, useNormal);
 			float p = inConsts.pbrP;
+			float shadowContribution = getShadowContribution(lightSpace[0]);
 
 			if(light.type == 1){
-				vec3 centerToRay = dot(r,inLights[lightInd])*r - inLights[lightInd];
-				vec3 closestPoint = inLights[lightInd] + centerToRay*light.radius/length(centerToRay);
+				vec3 centerToRay = dot(r,toLight[lightInd])*r - toLight[lightInd];
+				vec3 closestPoint = toLight[lightInd] + centerToRay*light.radius/length(centerToRay);
 				float normDot = dot(useNormal,normalize(closestPoint));
 				if (normDot < 0) normDot = 0;
-				float phi = acos(dot(normalize(r),normalize(inLights[lightInd])));
+				float phi = acos(dot(normalize(r),normalize(toLight[lightInd])));
 				float dist = length(closestPoint);
 				float alpha = roughness*roughness;
 				float alphaP = alpha + light.radius/2/dist;
@@ -215,9 +233,9 @@ void main() {
 			}
 			else if(light.type == 3){
 				
-				vec3 centerToRay = dot(r,inLights[lightInd])*r - inLights[lightInd];
-				vec3 closestPoint = inLights[lightInd] + centerToRay*light.radius/length(centerToRay);
-				float phi = acos(dot(normalize(r),normalize(inLights[lightInd])));
+				vec3 centerToRay = dot(r,toLight[lightInd])*r - toLight[lightInd];
+				vec3 closestPoint = toLight[lightInd] + centerToRay*light.radius/length(centerToRay);
+				float phi = acos(dot(normalize(r),normalize(toLight[lightInd])));
 				float dist = length(closestPoint);
 				float alpha = roughness*roughness;
 				float alphaP = alpha + light.radius/2/dist;
@@ -226,7 +244,7 @@ void main() {
 				float blendLimit = light.fov*(1 - light.blend)/2;
 				float fovLimit = light.fov/2;
 				float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
-				vec3 sphereContribution = vec3((light.power + 2)/(2*3.14159)*pow(phi,p)*fallOff)*tint;
+				vec3 sphereContribution = shadowContribution*vec3((light.power + 2)/(2*3.14159)*pow(phi,p)*fallOff)*tint;
 				if(light.limit > dist){
 					
 					float normDot = dot(useNormal,vec3(0,0,1));
