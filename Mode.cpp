@@ -193,8 +193,6 @@ void Mode::mainLoop(SceneGraph* graph) {
 }
 
 int Mode::modeMain() {
-	//TODO: Make keeping this around not necessary
-	Texture t0 = Texture::parseTexture("Textures/brick.png", false);
 	Texture defaultCube;
 	defaultCube.doFree = false;
 	defaultCube.realY = 6;
@@ -236,7 +234,7 @@ int Mode::modeMain() {
 		drawList.cubeMaps.push_back(defaultCube);
 	}
 	if (drawList.textureMaps.size() == 0) {
-		drawList.textureMaps.push_back(t0);
+		drawList.textureMaps.push_back(defaultShadow);
 	}
 	
 	//Initialize Vulkan System
