@@ -1951,14 +1951,18 @@ void VulkanSystem::cullInstances() {
 	for (size_t pool = 0; pool < transformInstPools.size(); pool++) {
 		transformInstPools[pool].clear();
 		transformInstPools[pool].reserve(transformInstPoolsStore[pool].size());
-		transformEnvironmentInstPools[pool].clear();
-		transformEnvironmentInstPools[pool].reserve(transformInstPoolsStore[pool].size());
+		if (rawEnvironment.has_value()) {
+			transformEnvironmentInstPools[pool].clear();
+			transformEnvironmentInstPools[pool].reserve(transformInstPoolsStore[pool].size());
+		}
 		transformNormalInstPools[pool].clear();
 		transformNormalInstPools[pool].reserve(transformInstPoolsStore[pool].size());
 		for (size_t transform = 0; transform < transformInstPoolsStore[pool].size(); transform++) {
 			if (!useCulling || sphereInFrustum(boundingSpheresInst[transformInstIndexPools[pool]], info, cameraSpace, transformInstPoolsStore[pool][transform])) {
 				transformInstPools[pool].push_back(transformInstPoolsStore[pool][transform]);
-				transformEnvironmentInstPools[pool].push_back(transformEnvironmentInstPoolsStore[pool][transform]);
+				if (rawEnvironment.has_value()) {
+					transformEnvironmentInstPools[pool].push_back(transformEnvironmentInstPoolsStore[pool][transform]);
+				}
 				transformNormalInstPools[pool].push_back(transformNormalInstPoolsStore[pool][transform]);
 			}
 		}
@@ -2549,8 +2553,9 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 			//Unfortunately, the results of culling cant be used here, every possible transform needs to be accounted for in the buffer size
 			//Even if they end up unused!
 			VkDeviceSize bufferSizeTransforms = sizeof(mat44<float>) * transformInstPoolsStore[pool - transformPools.size()].size();
-			VkDeviceSize bufferSizeNormalTransforms = sizeof(mat44<float>) * transformPools[pool].size();
-			VkDeviceSize bufferSizeEnvironmentTransforms = sizeof(mat44<float>) * transformEnvironmentInstPoolsStore[pool - transformPools.size()].size();
+			VkDeviceSize bufferSizeNormalTransforms = sizeof(mat44<float>) * transformInstPoolsStore[pool - transformPools.size()].size();
+			VkDeviceSize bufferSizeEnvironmentTransforms;
+			if (rawEnvironment.has_value())bufferSizeEnvironmentTransforms = sizeof(mat44<float>) * transformEnvironmentInstPoolsStore[pool - transformPools.size()].size();
 			VkDeviceSize bufferSizeCameras = sizeof(mat44<float>);
 			VkDeviceSize bufferSizeLights = sizeof(Light) * lightPool.size();
 			VkDeviceSize bufferSizeLightTransforms = sizeof(mat44<float>) * lightPool.size();
@@ -2905,7 +2910,7 @@ void VulkanSystem::createDescriptorSets() {
 				VkDescriptorBufferInfo bufferInfoModels{};
 				bufferInfoModels.buffer = uniformBuffersModelsPools[i][pool][frame];
 				bufferInfoModels.offset = 0;
-				bufferInfoModels.range = sizeof(mat44<float>) * transformPools[pool].size();
+				bufferInfoModels.range = sizeof(mat44<float>) * transformInstPoolsStore[pool - transformPools.size()].size();
 
 				shadowWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				shadowWriteDescriptorSets[0].dstSet = descriptorSetsShadows[i][poolInd];
@@ -3437,8 +3442,8 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 			transformInstPools[poolAdjusted].size());
 		for (int i = 0; i < lightPool.size(); i++) {
 			memcpy(uniformBuffersMappedModelsPools[i][pool][frame],
-				transformPools[pool].data(), sizeof(mat44<float>) *
-				transformPools[pool].size());
+				transformInstPools[pool].data(), sizeof(mat44<float>) *
+				transformInstPools[pool].size());
 		}
 		if (rawEnvironment.has_value()) {
 			memcpy(uniformBuffersMappedNormalTransformsPools[pool][frame],
@@ -3457,7 +3462,7 @@ void VulkanSystem::updateUniformBuffers(uint32_t frame) {
 		memcpy(uniformBuffersMappedLightPerspectivePools[pool][frame], worldTolightPerspPool.data(),
 			sizeof(mat44<float>) * worldTolightPool.size());
 		memcpy(uniformBuffersMappedMaterialsPools[pool][frame],
-			materialPools[pool].data(), matsize* materialPools[pool].size());
+			&instancedMaterials[pool], matsize);
 	}
 }
 

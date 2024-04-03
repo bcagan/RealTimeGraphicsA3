@@ -26,7 +26,7 @@ layout(location = 6) out vec3 toEnvLight;
 layout(location = 7) out vec4 position;
 
 void main() {
-    vec4 worldPos = transforms.arr[inNode] * vec4(inPosition, 1.0);
+    vec4 worldPos = transforms.arr[gl_InstanceIndex] * vec4(inPosition, 1.0);
     gl_Position = camera.camera * worldPos;
     position = worldPos;
     fragColor = inColor;

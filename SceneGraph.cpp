@@ -573,6 +573,7 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 			std::vector<mat44<float>> subPool = std::vector <mat44<float>>(instTraInter[pool].begin() + index, instTraInter[pool].begin() + index + size);
 			std::vector<mat44<float>> subPoolNormal = std::vector <mat44<float>>(instTraNormInter[pool].begin() + index, instTraNormInter[pool].begin() + index + size);
 			list.instancedTransformPools.push_back(subPool);
+			list.instancedTransformIndexPools.push_back(pool);
 			list.instancedNormalTransformPools.push_back(subPoolNormal);
 		}
 	}
@@ -691,8 +692,18 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 		DrawMaterial mat = {};
 		mat.type = MAT_NONE;
 		list.materialPools.resize(list.transformPools.size());
-		for (int i = 0; i < list.transformPools.size();i++) {
-			list.materialPools[i].push_back(mat);
+		for (int i = 0; i < list.transformPools.size(); i++) {
+			for (int j = 0; j < i; j++) {
+				list.materialPools[i].push_back(mat);
+			}
+		}
+	}
+	if (list.instancedMaterials.size() == 0) {
+		DrawMaterial mat = {};
+		mat.type = MAT_NONE;
+		list.materialPools.resize(list.transformPools.size());
+		for (int i = 0; i < list.transformPools.size(); i++) {
+			list.instancedMaterials.push_back(mat);
 		}
 	}
 	if (list.worldToLights.size() == 0) {
