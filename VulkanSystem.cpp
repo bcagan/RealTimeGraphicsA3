@@ -2458,6 +2458,7 @@ void VulkanSystem::createUniformBuffers(bool realloc) {
 		uniformBuffersLightPerspectivePools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMemoryLightPerspectivePools[pool].resize(MAX_FRAMES_IN_FLIGHT);
 		uniformBuffersMappedLightPerspectivePools[pool].resize(MAX_FRAMES_IN_FLIGHT);
+
 		for (int i = 0; i < lightPool.size(); i++) {
 			uniformBuffersModelsPools[i][pool].resize(MAX_FRAMES_IN_FLIGHT);
 			uniformBuffersMemoryModelsPools[i][pool].resize(MAX_FRAMES_IN_FLIGHT);

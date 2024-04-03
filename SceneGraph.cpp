@@ -681,6 +681,25 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 		mat44<float> persp = mat44<float>::perspective(light.fov, 1, 0.01, 1000);
 		list.worldToLightsPersp.push_back(persp* transform);
 	}
+
+	if (list.lights.size() == 0) {
+		DrawLight light = {};
+		light.type = LIGHT_NONE;
+		list.lights.push_back(light);
+	}
+	if (list.materialPools.size() == 0) {
+		DrawMaterial mat = {};
+		mat.type = MAT_NONE;
+		list.materialPools.resize(list.transformPools.size());
+		for (int i = 0; i < list.transformPools.size();i++) {
+			list.materialPools[i].push_back(mat);
+		}
+	}
+	if (list.worldToLights.size() == 0) {
+		list.worldToLights.push_back(mat44<float>(1));
+		list.worldToLightsPersp.push_back(mat44<float>(1));
+	}
+
 	std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();
 	if(verbose) std::cout << "MEASURE scene graph navigate: " << (float)
 		std::chrono::duration_cast<std::chrono::milliseconds>(
