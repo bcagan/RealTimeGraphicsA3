@@ -94,6 +94,7 @@ public:
 	Texture LUT;
 	std::vector<std::vector<DrawMaterial>> materialPools;
 	std::vector<DrawMaterial> instancedMaterials;
+	Texture defaultShadowTex;
 	//Animation and culling
 	std::vector<std::vector<DrawNode>> drawPools;
 	std::vector<std::pair<float_3, float>> boundingSpheresInst;
@@ -253,6 +254,10 @@ private:
 	VkDeviceMemory LUTImageMemory;
 	VkImageView LUTImageView;
 	VkSampler LUTSampler;
+	VkImage defaultShadowImage;
+	VkDeviceMemory defaultShadowImageMemory;
+	VkImageView defaultShadowImageView;
+	VkSampler defaultShadowSampler;
 	//Uniforms
 	std::vector<std::vector<VkBuffer>> uniformBuffersTransformsPools;
 	std::vector<std::vector<VkDeviceMemory>> uniformBuffersMemoryTransformsPools;

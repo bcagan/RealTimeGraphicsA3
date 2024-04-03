@@ -408,6 +408,9 @@ void VulkanSystem::cleanup() {
 	vkDestroyImageView(device, LUTImageView, nullptr);
 	vkDestroyImage(device, LUTImage, nullptr);
 	vkFreeMemory(device, LUTImageMemory, nullptr);
+	vkDestroyImageView(device, defaultShadowImageView, nullptr);
+	vkDestroyImage(device, defaultShadowImage, nullptr);
+	vkFreeMemory(device, defaultShadowImageMemory, nullptr);
 	for (int pool = 0; pool < transformPools.size(); pool++) {
 		for (int frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++) {
 			vkDestroyBuffer(device, uniformBuffersTransformsPools[pool][frame], nullptr);
@@ -905,8 +908,8 @@ void VulkanSystem::createAttachments() {
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, attachmentImages[image],
 			attachmentMemorys[image]);
 		for (int i = 0; i < lightPool.size(); i++) {
-			//HERE
 			uint32_t shadowRes = lightPool[i].shadowRes;
+			if (shadowRes == 0) shadowRes = 1;
 			createImage(shadowRes, shadowRes, VK_FORMAT_B8G8R8A8_UNORM,
 				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowImages[i][image],
@@ -1494,6 +1497,9 @@ void VulkanSystem::createFramebuffers() {
 	}
 	for (size_t image = 0; image < swapChainImageViews.size(); image++) {
 		for (int i = 0; i < lightPool.size(); i++) {
+
+			size_t shadowRes = lightPool[i].shadowRes;
+			if (shadowRes == 0) shadowRes = 1;
 			VkImageView attachments[] = { shadowImageViews[i][image],shadowDepthImageViews[i]};
 
 			VkFramebufferCreateInfo framebufferInfo{};
@@ -1501,8 +1507,8 @@ void VulkanSystem::createFramebuffers() {
 			framebufferInfo.renderPass = shadowPasses[i];
 			framebufferInfo.attachmentCount = 2;
 			framebufferInfo.pAttachments = attachments;
-			framebufferInfo.width = lightPool[i].shadowRes;
-			framebufferInfo.height = lightPool[i].shadowRes;
+			framebufferInfo.width = shadowRes;
+			framebufferInfo.height = shadowRes;
 			framebufferInfo.layers = 1;
 			if (vkCreateFramebuffer(device, &framebufferInfo, nullptr,
 				&(shadowFramebuffers[i][image])) != VK_SUCCESS) {
@@ -2284,6 +2290,7 @@ void VulkanSystem::createTextureImages() {
 		);
 	}
 	createTextureImage(LUT, LUTImage, LUTImageMemory, LUTImageView, LUTSampler);
+	createTextureImage(defaultShadowTex, defaultShadowImage, defaultShadowImageMemory, defaultShadowImageView, defaultShadowSampler);
 	cubeImages.resize(rawCubes.size());
 	cubeImageMemorys.resize(rawCubes.size());
 	cubeImageViews.resize(rawCubes.size());
@@ -3158,7 +3165,8 @@ void VulkanSystem::createDepthResources() {
 	shadowDepthImageViews.resize(lightPool.size());
 	shadowDepthImageMemorys.resize(lightPool.size());
 	for (int i = 0; i < lightPool.size(); i++) {
-		uint32_t shadowRes = lightPool[i].shadowRes;
+		size_t shadowRes = lightPool[i].shadowRes;
+		if (shadowRes == 0) shadowRes = 1;
 		createImage(shadowRes, shadowRes, shadowDepthFormat,
 			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowDepthImages[i], shadowDepthImageMemorys[i]);
@@ -3176,7 +3184,8 @@ void VulkanSystem::recordCommandBufferShadow(VkCommandBuffer commandBuffer, uint
 
 
 	VkExtent2D shadowExtent;
-	uint32_t shadowRes = lightPool[lightIndex].shadowRes;
+	size_t shadowRes = lightPool[lightIndex].shadowRes;
+	if (shadowRes == 0) shadowRes = 1;
 	shadowExtent.width = shadowRes;
 	shadowExtent.height = shadowRes;
 
@@ -3532,11 +3541,12 @@ void VulkanSystem::drawFrame() {
 		size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + currentFrame;
 
 		for (int light = 0; light < lightPool.size(); light++) {
+			bool useDefault = lightPool[light].shadowRes == 0;
 			writeDescriptorSets[light] = {};
 			imageInfoShadows[light] = {};
 			imageInfoShadows[light].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			imageInfoShadows[light].imageView = shadowDepthImageViews[light];
-			imageInfoShadows[light].sampler = shadowSamplers[light][currentFrame];
+			imageInfoShadows[light].imageView = useDefault ? defaultShadowImageView : shadowDepthImageViews[light];
+			imageInfoShadows[light].sampler = useDefault ? defaultShadowSampler : shadowSamplers[light][currentFrame];
 			writeDescriptorSets[light].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSets[light].dstSet = descriptorSetsHDR[poolInd];
 			writeDescriptorSets[light].dstBinding = 8;
@@ -3544,8 +3554,8 @@ void VulkanSystem::drawFrame() {
 			writeDescriptorSets[light].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			writeDescriptorSets[light].descriptorCount = 1;
 			writeDescriptorSets[light].pImageInfo = &imageInfoShadows[light];
-			vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
 		}
+		vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
 
 	}
 

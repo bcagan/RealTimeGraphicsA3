@@ -212,6 +212,16 @@ int Mode::modeMain() {
 	 char255 ,char255 ,char255 ,char255 ,
 	 char255 ,char255 ,char255 ,char255 };
 	defaultCube.data = char255Arr;
+	Texture defaultShadow;
+	defaultShadow.doFree = false;
+	defaultShadow.realY = 1;
+	defaultShadow.y = 1;
+	defaultShadow.x = 1;
+	defaultShadow.type = defaultShadow.TYPE_2D;
+	defaultShadow.FORM_LIN;
+	defaultShadow.mipLevels = 1;
+	const unsigned char shadowArr[] = { char255,char255,char255,char255 };
+	defaultShadow.data = shadowArr;
 
 	//Parse and initialize user requested .s72 scene graph file
 	Parser parser;
@@ -237,6 +247,7 @@ int Mode::modeMain() {
 	vulkanSystem.useCulling = culling;
 	vulkanSystem.poolSize = poolSize;
 	vulkanSystem.platform = platform;
+	vulkanSystem.defaultShadowTex = defaultShadow;
 
 	std::chrono::high_resolution_clock::time_point initFirst = std::chrono::high_resolution_clock::now();
 	vulkanSystem.initVulkan(drawList, cameraName);
