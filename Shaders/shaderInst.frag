@@ -109,7 +109,7 @@ void main() {
 			float dist = length(toLight[lightInd]);
 			float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
 			vec3 sphereContribution = vec3(light.power*fallOff)*tint;
-			float shadowContribution = getShadowContribution(lightSpace[0]);
+			float shadowContribution = getShadowContribution(lightSpace[lightInd]);
 
 			if(light.type == 1){
 				float normDot = dot(useNormal,normalize(toLight[lightInd]));
@@ -174,7 +174,7 @@ void main() {
 			vec3 tint = vec3(light.tintR, light.tintG, light.tintB);
 			vec3 r = reflect(cameraPos - position.xyz, useNormal);
 			float p = inConsts.pbrP;
-			float shadowContribution = getShadowContribution(lightSpace[0]);
+			float shadowContribution = getShadowContribution(lightSpace[lightInd]);
 
 			if(light.type == 1){
 				vec3 centerToRay = dot(r,toLight[lightInd])*r - toLight[lightInd];

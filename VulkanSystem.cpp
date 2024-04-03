@@ -1226,7 +1226,7 @@ void VulkanSystem::createDescriptorSetLayout() {
 
 	VkDescriptorSetLayoutBinding shadowMapBinding{};
 	shadowMapBinding.binding = 8;
-	shadowMapBinding.descriptorCount = 1;
+	shadowMapBinding.descriptorCount = lightPool.size();
 	shadowMapBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	shadowMapBinding.pImmutableSamplers = nullptr;
 	shadowMapBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -3003,8 +3003,6 @@ void VulkanSystem::createDescriptorSets() {
 			writeDescriptorSets[6].descriptorCount = 1;
 			writeDescriptorSets[6].pBufferInfo = &bufferInfoLightPerspective;
 
-			//Continue working on this, including shadow descriptor sets
-
 			if (rawEnvironment.has_value()) {
 				writeDescriptorSets[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeDescriptorSets[7].dstSet = descriptorSetsHDR[poolInd];
@@ -3513,23 +3511,42 @@ void VulkanSystem::drawFrame() {
 
 	}
 
+	/*
+	
+				imageInfosTex[tex].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				imageInfosTex[tex].imageView = textureImageViews[tex];
+				imageInfosTex[tex].sampler = textureSamplers[tex];
+				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
+				writeDescriptorSets[descSet].dstBinding = 3;
+				writeDescriptorSets[descSet].dstArrayElement = tex;
+				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				writeDescriptorSets[descSet].descriptorCount = 1;
+				writeDescriptorSets[descSet].pImageInfo = &imageInfosTex[tex];
+	*/
+
 
 	for (size_t pool = 0; pool < transformPools.size() + transformInstPoolsStore.size(); pool++) {
-		VkWriteDescriptorSet writeDescriptorSet{};
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets = std::vector<VkWriteDescriptorSet>(lightPool.size());
+		std::vector<VkDescriptorImageInfo> imageInfoShadows = std::vector<VkDescriptorImageInfo>(lightPool.size());
 		size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + currentFrame;
 
-		VkDescriptorImageInfo imageInfoShadow{};
-		imageInfoShadow.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfoShadow.imageView = shadowDepthImageViews[0]; //todo change this
-		imageInfoShadow.sampler = shadowSamplers[0][currentFrame];
-		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.dstSet = descriptorSetsHDR[poolInd];
-		writeDescriptorSet.dstBinding = 8;
-		writeDescriptorSet.dstArrayElement = 0;
-		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		writeDescriptorSet.descriptorCount = 1;
-		writeDescriptorSet.pImageInfo = &imageInfoShadow;
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+		for (int light = 0; light < lightPool.size(); light++) {
+			writeDescriptorSets[light] = {};
+			imageInfoShadows[light] = {};
+			imageInfoShadows[light].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfoShadows[light].imageView = shadowDepthImageViews[light];
+			imageInfoShadows[light].sampler = shadowSamplers[light][currentFrame];
+			writeDescriptorSets[light].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSets[light].dstSet = descriptorSetsHDR[poolInd];
+			writeDescriptorSets[light].dstBinding = 8;
+			writeDescriptorSets[light].dstArrayElement = light;
+			writeDescriptorSets[light].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptorSets[light].descriptorCount = 1;
+			writeDescriptorSets[light].pImageInfo = &imageInfoShadows[light];
+			vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+		}
+
 	}
 
 
