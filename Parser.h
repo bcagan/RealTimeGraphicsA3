@@ -349,7 +349,6 @@ Light Parser::parseLight(std::vector<std::string> jsonObject) {
 	nameString = parseName(nameString);
 	Light parsedLight;
 	parsedLight.shadowRes = 0;
-	//parsedLight.name = nameString;
 	parsedLight.type = LIGHT_NONE;
 
 	for (size_t i = 1; i < jsonObject.size(); i++) {
@@ -386,33 +385,45 @@ Light Parser::parseLight(std::vector<std::string> jsonObject) {
 			parsedLight.type = LIGHT_SPHERE;
 			std::string radiusStr = jsonObject[i + 1];
 			std::string powerStr = jsonObject[i + 2];
-			std::string limitStr = jsonObject[i + 3];
 			size_t radiusSize = radiusStr.size();
 			size_t powerSize = powerStr.size();
-			size_t limSize = limitStr.size();
 			parsedLight.radius = atof(radiusStr.substr(8, radiusSize - 9).c_str());
 			parsedLight.power = atof(powerStr.substr(8, powerSize - 8).c_str());
-			parsedLight.limit = atof(limitStr.substr(8, limSize - 8).c_str());
-			i += 4;
+			if (jsonObject[i + 3].at(0) == '}') {
+				i += 3;
+			}
+			else {
+				std::string limitStr = jsonObject[i + 3];
+				size_t limSize = limitStr.size();
+				parsedLight.limit = atof(limitStr.substr(8, limSize - 8).c_str());
+				i += 4;
+			}
 		}
 		else if (json1 == 's' && json2 == 'p' && json3 == 'o') {
 			parsedLight.type = LIGHT_SPOT;
+			bool hasLimit = jsonObject[i + 5].at(0) != '}';
 			std::string radiusStr = jsonObject[i + 1];
 			std::string powerStr = jsonObject[i + 2];
 			std::string fovStr = jsonObject[i + 3];
 			std::string blendStr = jsonObject[i + 4];
-			std::string limitStr = jsonObject[i + 5];
 			size_t radiusSize = radiusStr.size();
 			size_t powerSize = powerStr.size();
 			size_t fovSize = fovStr.size();
 			size_t blendize = blendStr.size();
-			size_t limSize = limitStr.size();
 			parsedLight.radius = atof(radiusStr.substr(8, radiusSize - 9).c_str());
 			parsedLight.power = atof(powerStr.substr(8, powerSize - 8).c_str());
 			parsedLight.fov = atof(fovStr.substr(6, fovSize - 6).c_str());
 			parsedLight.blend = atof(blendStr.substr(8, blendize - 8).c_str());
-			parsedLight.limit = atof(limitStr.substr(8, limSize - 8).c_str());
-			i += 6;
+			if (hasLimit) {
+				std::string limitStr = jsonObject[i + 5];
+				size_t limSize = limitStr.size();
+				parsedLight.limit = atof(limitStr.substr(8, limSize - 8).c_str());
+				i += 6;
+			}
+			else {
+
+				i += 5;
+			}
 		}
 		else if (json1 == 's' && json2 == 'h') {
 			parsedLight.shadowRes = atoi(jsonString.substr(9, strSize - 9).c_str());
@@ -934,7 +945,7 @@ SceneGraph Parser::parseJson(std::string fileName, bool verbose) {
 		if (node.light.has_value()) {
 			std::map<int, int>::iterator mappedLight = jsonIdToLightId.find(*node.light);
 			if (mappedLight == jsonIdToLightId.end()) {
-				throw std::runtime_error("ERROR: Unable to find camera id for light in Parser.");
+				throw std::runtime_error("ERROR: Unable to find light id for light in Parser.");
 			}
 			node.light = mappedLight->second;
 		}

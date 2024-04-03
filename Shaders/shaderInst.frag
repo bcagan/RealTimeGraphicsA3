@@ -107,8 +107,10 @@ void main() {
 			Light light = lights.arr[lightInd];
 			vec3 tint = vec3(light.tintR, light.tintG, light.tintB);
 			float dist = length(toLight[lightInd]);
-			float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
-			vec3 sphereContribution = vec3(light.power*fallOff)*tint;
+			float fallOff;
+			if(light.limit > 0) fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
+			else fallOff = 1/dist/dist/4/3.14159;
+			vec3 sphereContribution = vec3(light.power)*tint*fallOff;
 			float shadowContribution = getShadowContribution(lightSpace[lightInd]);
 
 			if(light.type == 1){
@@ -186,8 +188,10 @@ void main() {
 				float alpha = roughness*roughness;
 				float alphaP = alpha + light.radius/2/dist;
 				float sphereNormalization = pow((alpha/alphaP),2);
-				float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
-				vec3 sphereContribution = vec3((light.power + 2)/(2*3.14159)*pow(phi,p)*fallOff)*tint;
+				float fallOff;
+				if(light.limit > 0) fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
+				else fallOff = 1/dist/dist/4/3.14159;
+				vec3 sphereContribution = vec3((light.power + 2)/(2*3.14159)*pow(phi,p))*tint*fallOff;
 				directLight += normDot*sphereNormalization*sphereContribution;
 			}
 			else if(light.type == 2){
@@ -217,8 +221,10 @@ void main() {
 				float angle = acos(dot(normalize(closestPoint),vec3(0,0,1)));
 				float blendLimit = light.fov*(1 - light.blend)/2;
 				float fovLimit = light.fov/2;
-				float fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
-				vec3 sphereContribution = shadowContribution*vec3((light.power + 2)/(2*3.14159)*pow(phi,p)*fallOff)*tint;
+				float fallOff;
+				if(light.limit > 0) fallOff = max(0,1 - pow(dist/light.limit,4))/4/3.14159/dist/dist;
+				else fallOff = 1/dist/dist/4/3.14159;
+				vec3 sphereContribution = shadowContribution*vec3((light.power + 2)/(2*3.14159)*pow(phi,p))*tint*fallOff;
 				if(light.limit > dist){
 					
 					float normDot = dot(useNormal,vec3(0,0,1));

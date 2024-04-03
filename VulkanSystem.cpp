@@ -995,7 +995,6 @@ void VulkanSystem::createRenderPasses() {
 		depthAttachmentRef.attachment = 1;
 		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-		//HERE
 		shadowAttachment.format = VK_FORMAT_B8G8R8A8_UNORM;
 		shadowAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		shadowAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -1921,7 +1920,7 @@ bool sphereInFrustum(std::pair<float_3, float> boundingSphere, frustumInfo info,
 
 mat44<float> VulkanSystem::getCameraSpace(DrawCamera camera, float_3 useMoveVec, float_3 useDirVec) {
 	useDirVec = useDirVec.normalize()*-1;
-	float_3 up = float_3(0, 0, -1);
+	float_3 up = float_3(0, 0, 1);
 	float_3 cameraRight = up.cross(useDirVec);
 	float_3 cameraUp = useDirVec.cross(cameraRight);
 	cameraRight = cameraRight.normalize(); cameraUp = cameraUp.normalize();
@@ -2679,7 +2678,7 @@ void VulkanSystem::createDescriptorSets() {
 		allocateInfoShadow.descriptorPool = descriptorPoolShadows[i];
 		allocateInfoShadow.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
 		allocateInfoShadow.pSetLayouts = layoutsShadow.data();
-		descriptorSetsShadows[i].resize(MAX_FRAMES_IN_FLIGHT);
+		descriptorSetsShadows[i].resize(MAX_FRAMES_IN_FLIGHT * transformsSize);
 		if (vkAllocateDescriptorSets(device, &allocateInfoShadow, descriptorSetsShadows[i].data())
 			!= VK_SUCCESS) {
 			throw std::runtime_error("ERROR: Unable to create descriptor sets in Vulkan System. Shadow.");
@@ -2720,7 +2719,7 @@ void VulkanSystem::createDescriptorSets() {
 		for (int frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++) {
 			size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + frame;
 			std::vector<VkWriteDescriptorSet> shadowWriteDescriptorSets =
-				std::vector<VkWriteDescriptorSet>(1);
+				std::vector<VkWriteDescriptorSet>(lightPool.size());
 
 			for (int i = 0; i < lightPool.size(); i++) {
 				//Shadow
@@ -2729,14 +2728,14 @@ void VulkanSystem::createDescriptorSets() {
 				bufferInfoModels.offset = 0;
 				bufferInfoModels.range = sizeof(mat44<float>) * transformPools[pool].size();
 
-				shadowWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				shadowWriteDescriptorSets[0].dstSet = descriptorSetsShadows[i][poolInd];
-				shadowWriteDescriptorSets[0].dstBinding = 0;
-				shadowWriteDescriptorSets[0].dstArrayElement = 0;
-				shadowWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				shadowWriteDescriptorSets[0].descriptorCount = 1;
-				shadowWriteDescriptorSets[0].pBufferInfo = &bufferInfoModels;
-				vkUpdateDescriptorSets(device, 1, shadowWriteDescriptorSets.data(), 0, nullptr);
+				shadowWriteDescriptorSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				shadowWriteDescriptorSets[i].dstSet = descriptorSetsShadows[i][poolInd];
+				shadowWriteDescriptorSets[i].dstBinding = 0;
+				shadowWriteDescriptorSets[i].dstArrayElement = 0;
+				shadowWriteDescriptorSets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				shadowWriteDescriptorSets[i].descriptorCount = 1;
+				shadowWriteDescriptorSets[i].pBufferInfo = &bufferInfoModels;
+				vkUpdateDescriptorSets(device, 1, &shadowWriteDescriptorSets[i], 0, nullptr);
 			}
 
 			//HDR
@@ -2903,7 +2902,7 @@ void VulkanSystem::createDescriptorSets() {
 		for (int frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++) {
 			size_t poolInd = pool * MAX_FRAMES_IN_FLIGHT + frame;
 			std::vector<VkWriteDescriptorSet> shadowWriteDescriptorSets =
-				std::vector<VkWriteDescriptorSet>(1);
+				std::vector<VkWriteDescriptorSet>(lightPool.size());
 
 			for (int i = 0; i < lightPool.size(); i++) {
 				//Shadow
@@ -2912,15 +2911,16 @@ void VulkanSystem::createDescriptorSets() {
 				bufferInfoModels.offset = 0;
 				bufferInfoModels.range = sizeof(mat44<float>) * transformInstPoolsStore[pool - transformPools.size()].size();
 
-				shadowWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				shadowWriteDescriptorSets[0].dstSet = descriptorSetsShadows[i][poolInd];
-				shadowWriteDescriptorSets[0].dstBinding = 0;
-				shadowWriteDescriptorSets[0].dstArrayElement = 0;
-				shadowWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				shadowWriteDescriptorSets[0].descriptorCount = 1;
-				shadowWriteDescriptorSets[0].pBufferInfo = &bufferInfoModels;
-				vkUpdateDescriptorSets(device, 1, shadowWriteDescriptorSets.data(), 0, nullptr);
+				shadowWriteDescriptorSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				shadowWriteDescriptorSets[i].dstSet = descriptorSetsShadows[i][poolInd];
+				shadowWriteDescriptorSets[i].dstBinding = 0;
+				shadowWriteDescriptorSets[i].dstArrayElement = 0;
+				shadowWriteDescriptorSets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				shadowWriteDescriptorSets[i].descriptorCount = 1;
+				shadowWriteDescriptorSets[i].pBufferInfo = &bufferInfoModels;
+				vkUpdateDescriptorSets(device, 1, &shadowWriteDescriptorSets[i], 0, nullptr);
 			}
+
 
 			VkDescriptorBufferInfo bufferInfoLightPerspective{};
 			bufferInfoLightPerspective.buffer = uniformBuffersLightPerspectivePools[pool][frame];
@@ -3526,19 +3526,6 @@ void VulkanSystem::drawFrame() {
 
 	}
 
-	/*
-	
-				imageInfosTex[tex].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfosTex[tex].imageView = textureImageViews[tex];
-				imageInfosTex[tex].sampler = textureSamplers[tex];
-				writeDescriptorSets[descSet].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeDescriptorSets[descSet].dstSet = descriptorSetsHDR[poolInd];
-				writeDescriptorSets[descSet].dstBinding = 3;
-				writeDescriptorSets[descSet].dstArrayElement = tex;
-				writeDescriptorSets[descSet].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				writeDescriptorSets[descSet].descriptorCount = 1;
-				writeDescriptorSets[descSet].pImageInfo = &imageInfosTex[tex];
-	*/
 
 
 	for (size_t pool = 0; pool < transformPools.size() + transformInstPoolsStore.size(); pool++) {
