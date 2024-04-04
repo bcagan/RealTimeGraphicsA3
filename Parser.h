@@ -76,9 +76,9 @@ PartialMaterialData Parser::parseMaterialData(std::string objectString, bool par
 		dataVec.z = stringVec[2];
 		parsedData.vec = dataVec;
 	}
-	else if (objectString.at(0) == 's') {
+	else if (objectString.at(3) == 's') {
 		parsedData.type = PART_TEX;
-		std::string texName = objectString.substr(6, objectString.size() - 7);
+		std::string texName = objectString.substr(9, objectString.size() - 10);
 		Texture parsedTex = Texture::parseTexture(texName, parseAsCube);
 		std::pair<Texture, std::string> texData = std::make_pair(parsedTex, texName);
 		parsedData.texture = texData;

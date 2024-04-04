@@ -33,7 +33,7 @@
 {
 	"type":"NODE",
 	"name":"Spot Node",
-	"translation":[0,1,5],
+	"translation":[0,1,-5],
 	"light":6
 },
 {
@@ -52,14 +52,14 @@
 {
 	"type":"NODE",
 	"name":"Small Cube Node",
-	"translation":[0,0,2],
+	"translation":[0,0,-2],
 	"scale":[0.2,0.2,0.2],
 	"mesh":3
 },
 {
 	"type":"NODE",
 	"name":"Spot Node B",
-	"translation":[0,-1,5],
+	"translation":[0,-1,-5],
 	"light":6
 },
 ]

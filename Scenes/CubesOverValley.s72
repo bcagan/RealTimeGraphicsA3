@@ -13,7 +13,7 @@
 {
 	"type":"NODE",
 	"name":"Camera",
-	"translation":[26.8289,-16.1658,20],
+	"translation":[26.8289,-16.1658,40],
 	"rotation":[-0.92694,-0.334559,0.057666,0.159771],
 	"scale":[1,1,1],
 	"camera":1
@@ -28,7 +28,7 @@
 		"NORMAL":{ "src":"CubesOverValley.Plane.pnc.b72", "offset":12, "stride":28, "format":"R32G32B32_SFLOAT" },
 		"COLOR":{ "src":"CubesOverValley.Plane.pnc.b72", "offset":24, "stride":28, "format":"R8G8B8A8_UNORM" }
 	},
-	"material":61,
+	"material":62,
 },
 {
 	"type":"NODE",
@@ -510,6 +510,13 @@
 	"name":"lambertian material",
 	"lambertian": {
 		"albedo": [1, 1, 1],
+	},
+},
+{
+	"type":"MATERIAL",
+	"name":"lambertian material",
+	"lambertian": {
+		"albedo": { "src":"Textures\CubesOverValley.jpg"}
 	},
 },
 ]

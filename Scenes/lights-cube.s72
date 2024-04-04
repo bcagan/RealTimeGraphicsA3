@@ -45,7 +45,7 @@
 {
 	"type":"NODE",
 	"name":"Spot Node",
-	"translation":[0,0,5],
+	"translation":[0,0,-5],
 	"light":11
 },
 {
@@ -102,13 +102,13 @@
 {
 	"type":"NODE",
 	"name":"Spot Node COPY",
-	"translation":[0,1,5],
+	"translation":[0,1,-5],
 	"light":11
 },
 {
 	"type":"NODE",
 	"name":"Spot Node COPY 2",
-	"translation":[0,-1,5],
+	"translation":[0,-1,-5],
 	"light":11
 },
 ]

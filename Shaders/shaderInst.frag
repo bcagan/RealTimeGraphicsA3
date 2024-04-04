@@ -100,7 +100,7 @@ void main() {
 		useNormal = 2 * texture(textures[material.normalMap], texcoord).xyz + vec3(1);
 		useNormal = normalize(tbn * useNormal);
 	}
-	vec3 light = mix(vec3(0,0,0),vec3(1,1,1),0.75 + 0.25*dot(useNormal,vec3(0,0,1)));
+	vec3 light = mix(vec3(0,0,0),vec3(1,1,1),0.75 + 0.25*dot(useNormal,vec3(0,0,-1)));
 	if(material.type == 2){ //Diffuse
 		vec3 directLight = vec3(0,0,0);
 		for(int lightInd = 0; lightInd < numLights; lightInd++){
@@ -119,15 +119,15 @@ void main() {
 				directLight += normDot * sphereContribution;
 			}
 			else if(light.type == 2){
-				float normDot = dot(useNormal,vec3(0,0,1));
+				float normDot = dot(useNormal,vec3(0,0,-1));
 				if (normDot < 0) normDot = 1 + normDot;
 				else normDot = 1;
 				directLight += normDot*light.strength*tint;
 			}
 			else if(light.type == 3){
-				float normDot = dot(useNormal,vec3(0,0,1));
+				float normDot = dot(useNormal,vec3(0,0,-1));
 				if (normDot < 0) normDot = 0;
-				float angle = acos(dot(normalize(toLight[lightInd]),vec3(0,0,1)));
+				float angle = acos(dot(normalize(toLight[lightInd]),vec3(0,0,-1)));
 				float blendLimit = light.fov*(1 - light.blend)/2;
 				float fovLimit = light.fov/2;
 				if(light.limit > dist){
@@ -196,11 +196,11 @@ void main() {
 			}
 			else if(light.type == 2){
 				r = normalize(r);
-				float angle = acos(dot(r,vec3(0,0,1)));
+				float angle = acos(dot(r,vec3(0,0,-1)));
 				float solidAngle = 3.14159*(light.angle/2)*(light.angle/2);
 				float normalizeAngle = solidAngle/4/3.14159;
-				float phi = acos(dot(r,vec3(0,0,1)));
-				if(dot(useNormal,vec3(0,0,1)) < 0){
+				float phi = acos(dot(r,vec3(0,0,-1)));
+				if(dot(useNormal,vec3(0,0,-1)) < 0){
 					phi = 0;
 				}
 				else if(angle > light.angle / 2){
@@ -218,7 +218,7 @@ void main() {
 				float alpha = roughness*roughness;
 				float alphaP = alpha + light.radius/2/dist;
 				float sphereNormalization = pow((alpha/alphaP),2);
-				float angle = acos(dot(normalize(closestPoint),vec3(0,0,1)));
+				float angle = acos(dot(normalize(closestPoint),vec3(0,0,-1)));
 				float blendLimit = light.fov*(1 - light.blend)/2;
 				float fovLimit = light.fov/2;
 				float fallOff;
@@ -227,7 +227,7 @@ void main() {
 				vec3 sphereContribution = shadowContribution*vec3((light.power + 2)/(2*3.14159)*pow(phi,p))*tint*fallOff;
 				if(light.limit > dist){
 					
-					float normDot = dot(useNormal,vec3(0,0,1));
+					float normDot = dot(useNormal,vec3(0,0,-1));
 					if (normDot < 0) normDot = 0;
 					if(angle < blendLimit){
 						directLight += normDot*sphereNormalization *sphereContribution;
