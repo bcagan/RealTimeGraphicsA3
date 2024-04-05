@@ -167,7 +167,7 @@ MaterialInt Parser::parseMaterial(std::vector<std::string> jsonObject) {
 				jsonObject[stringInd + 1];
 			lambertianString = 
 				lambertianString.substr(10, lambertianString.size() - 11);
-			PartialMaterialData partialData = parseMaterialData(lambertianString, true);
+			PartialMaterialData partialData = parseMaterialData(lambertianString, false);
 			if (partialData.type == PART_TEX) {
 				parsedMaterial.data.lambertian.useValue = false;
 				parsedMaterial.data.lambertian.texture = partialData.texture;
@@ -889,7 +889,7 @@ SceneGraph Parser::parseJson(std::string fileName, bool verbose) {
 					material.data.albedoTexture = nameToTextureId(
 						parsedMaterial.data.lambertian.texture->second,
 						parsedMaterial.data.lambertian.texture->first,
-						&parsedGraph.cubeMaps);
+						&parsedGraph.textureMaps);
 				}
 				break;
 			//None of the other materials use material data
