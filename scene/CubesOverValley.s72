@@ -1,0 +1,524 @@
+["s72-v1",
+{
+
+	"type":"CAMERA",
+	"name":"Camera",
+	"perspective":{
+		"aspect":1.77778,
+		"vfov":0.47109,
+		"near":0.1,
+		"far":1000000
+	}
+},
+{
+	"type":"NODE",
+	"name":"Camera",
+	"translation":[26.8289,-16.1658,40],
+	"rotation":[-0.92694,-0.334559,0.057666,0.159771],
+	"scale":[1,1,1],
+	"camera":1
+},
+{
+	"type":"MESH",
+	"name":"Plane",
+	"topology":"TRIANGLE_LIST",
+	"count":39354,
+	"attributes":{
+		"POSITION":{ "src":"CubesOverValley.Plane.pnTtc.b72", "offset":0, "stride":52, "format":"R32G32B32_SFLOAT" },
+		"NORMAL":{ "src":"CubesOverValley.Plane.pnTtc.b72", "offset":12, "stride":52, "format":"R32G32B32_SFLOAT" },
+		"TANGENT":{ "src":"CubesOverValley.Plane.pnTtc.b72", "offset":24, "stride":52, "format":"R32G32B32A32_SFLOAT" },
+		"TEXCOORD":{ "src":"CubesOverValley.Plane.pnTtc.b72", "offset":40, "stride":52, "format":"R32G32_SFLOAT" },
+		"COLOR":{ "src":"CubesOverValley.Plane.pnTtc.b72", "offset":48, "stride":52, "format":"R8G8B8A8_UNORM" }
+	},
+	"material":62
+},
+{
+	"type":"NODE",
+	"name":"Ground",
+	"translation":[0,0,0],
+	"rotation":[0,0,0,1],
+	"scale":[100,100,100],
+	"mesh":3
+},
+{
+	"type":"MESH",
+	"name":"Cube.001",
+	"topology":"TRIANGLE_LIST",
+	"count":36,
+	"attributes":{
+		"POSITION":{ "src":"CubesOverValley.Cube.001.pnc.b72", "offset":0, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"NORMAL":{ "src":"CubesOverValley.Cube.001.pnc.b72", "offset":12, "stride":28, "format":"R32G32B32_SFLOAT" },
+		"COLOR":{ "src":"CubesOverValley.Cube.001.pnc.b72", "offset":24, "stride":28, "format":"R8G8B8A8_UNORM" }
+	},
+	"material":61,
+},
+{
+	"type":"NODE",
+	"name":"Cube",
+	"translation":[3.35,16.39,50],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.001",
+	"translation":[13.3191,17.0045,65.1624],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.002",
+	"translation":[11.7549,-5.28184,56.6065],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.003",
+	"translation":[49.4906,-28.3337,71.1796],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.004",
+	"translation":[-1.39487,-64.6126,6.18283],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.005",
+	"translation":[-16.2818,-57.1741,20.0386],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.006",
+	"translation":[9.28364,-60.3408,33.5425],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.007",
+	"translation":[-0.718422,-50.4508,45.2041],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.008",
+	"translation":[17.0219,-43.7995,55.7968],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.009",
+	"translation":[-3.80428,-38.184,60.7157],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.010",
+	"translation":[27.3229,-67.3579,50.0845],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.011",
+	"translation":[50.5577,-73.5994,53.6799],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.012",
+	"translation":[-53.3904,-48.0422,33.2347],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.013",
+	"translation":[-46.5869,-33.2375,53.0287],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.014",
+	"translation":[-38.3328,-13.0624,79.2413],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.015",
+	"translation":[-28.0872,16.2293,68.3124],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.016",
+	"translation":[5.89057,88.3779,17.1926],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.017",
+	"translation":[-10.9506,83.9672,26.6039],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.018",
+	"translation":[-40.7409,80.3677,23.2633],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.019",
+	"translation":[2.33777,73.4722,41.4408],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.020",
+	"translation":[-18.0165,59.1163,50.6226],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.021",
+	"translation":[0.446224,59.084,55.4642],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.022",
+	"translation":[19.9988,47.261,72.4852],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.023",
+	"translation":[-33.4774,39.6276,66.2574],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.024",
+	"translation":[17.4584,51.6758,51.7272],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.025",
+	"translation":[41.0211,97.3511,23.27],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.026",
+	"translation":[-81.7094,11.6248,85.5033],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.027",
+	"translation":[-59.5363,-17.1746,37.2727],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.028",
+	"translation":[-75.2305,4.63179,65.8859],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.029",
+	"translation":[-80.259,-69.5995,69.2672],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.030",
+	"translation":[69.2144,66.3735,107.243],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+	"type":"NODE",
+	"name":"Cube.031",
+	"translation":[78.2211,2.91031,118.75],
+	"rotation":[0,0,0,1],
+	"scale":[3,3,3],
+	"mesh":5
+},
+{
+
+	"type":"LIGHT",
+	"name":"Point",
+	"tint":[1, 0, 0],
+	"sphere":{
+		"radius":1,
+		"power":7000
+	}
+},
+{
+	"type":"NODE",
+	"name":"Red Point",
+	"translation":[0,0,50],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":38
+},
+{
+	"type":"NODE",
+	"name":"Red Point.001",
+	"translation":[29.6754,5.7462,94.47],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":38
+},
+{
+	"type":"NODE",
+	"name":"Red Point.002",
+	"translation":[-10.533,-83.3628,57.8573],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":38
+},
+{
+
+	"type":"LIGHT",
+	"name":"Teal",
+	"tint":[0, 1, 0.764598],
+	"sphere":{
+		"radius":0,
+		"power":7000
+	}
+},
+{
+	"type":"NODE",
+	"name":"Teal Point",
+	"translation":[0,49.2449,73.3293],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":42
+},
+{
+	"type":"NODE",
+	"name":"Teal Point.001",
+	"translation":[56.2479,-63.5604,87.758],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":42
+},
+{
+
+	"type":"LIGHT",
+	"name":"Yellow",
+	"tint":[1, 0.926445, 0],
+	"sphere":{
+		"radius":1,
+		"power":7000
+	}
+},
+{
+	"type":"NODE",
+	"name":"Yellow Point",
+	"translation":[39.3029,99.9759,100],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":45
+},
+{
+	"type":"NODE",
+	"name":"Yellow Point.001",
+	"translation":[-72.7576,-90.1772,80.2158],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":45
+},
+{
+
+	"type":"LIGHT",
+	"name":"Yellow.001",
+	"tint":[1, 0.926445, 0],
+	"sphere":{
+		"radius":1,
+		"power":5000
+	}
+},
+{
+	"type":"NODE",
+	"name":"Yellow Point.002",
+	"translation":[-14.2592,-86.6889,80.3059],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":48
+},
+{
+
+	"type":"LIGHT",
+	"name":"Point.001",
+	"tint":[0.928455, 0, 1],
+	"sphere":{
+		"radius":0,
+		"power":7000
+	}
+},
+{
+	"type":"NODE",
+	"name":"Magenta Point",
+	"translation":[-95.4837,75.1855,75.75],
+	"rotation":[0,0,0,1],
+	"scale":[1,1,1],
+	"light":50
+},
+{
+
+	"type":"LIGHT",
+	"name":"Spot",
+	"tint":[1, 0.212566, 0],
+	"spot":{
+		"radius":0,
+		"power":12000,
+		"fov":0.785398,
+		"blend":0.15
+	}
+},
+{
+	"type":"NODE",
+	"name":"Orange Spot",
+	"translation":[0,0,80],
+	"rotation":[0.293048,-0.301775,0.0980525,0.901909],
+	"scale":[1,1,1],
+	"light":52
+},
+{
+	"type":"NODE",
+	"name":"Orange Spot.001",
+	"translation":[-107.05,21.417,91.312],
+	"rotation":[0.0399402,-0.418748,-0.487537,0.76509],
+	"scale":[1,1,1],
+	"light":52
+},
+{
+	"type":"NODE",
+	"name":"Orange Spot.002",
+	"translation":[61.8775,-57.947,117.9],
+	"rotation":[0.297036,-0.161425,0.636083,0.693621],
+	"scale":[1,1,1],
+	"light":52
+},
+{
+
+	"type":"LIGHT",
+	"name":"blue",
+	"tint":[0, 4.00543e-05, 1],
+	"spot":{
+		"radius":0,
+		"power":13500,
+		"fov":1.07163,
+		"blend":0.306051
+	}
+},
+{
+	"type":"NODE",
+	"name":"Blue Spot",
+	"translation":[0,0,90],
+	"rotation":[-0.224951,0,0,0.97437],
+	"scale":[1,1,1],
+	"light":56
+},
+{
+	"type":"NODE",
+	"name":"Blue Spot.001",
+	"translation":[6.11331,60.3707,105.432],
+	"rotation":[-0.224951,0,0,0.97437],
+	"scale":[1,1,1],
+	"light":56
+},
+{
+	"type":"NODE",
+	"name":"Blue Spot.002",
+	"translation":[70.9756,51.251,109.819],
+	"rotation":[-0.0434321,0.63799,0.768808,0.00403857],
+	"scale":[1,1,1],
+	"light":56
+},
+{
+	"type":"SCENE",
+	"name":"CubesOverValley.blend",
+	"roots":[2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39, 40, 41, 43, 44, 46, 47, 49, 51, 53, 54, 55, 57, 58, 59]
+},
+{
+	"type":"MATERIAL",
+	"name":"lambertian material",
+	"lambertian": {
+		"albedo": [1, 1, 1],
+	},
+},
+{
+	"type":"MATERIAL",
+	"name":"lambertian material",
+	"lambertian": {
+		"albedo": { "src":"Textures\CubesOverValley.jpg"}
+	},
+},
+]

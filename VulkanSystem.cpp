@@ -653,10 +653,6 @@ SwapChainSupportDetails VulkanSystem::querySwapChainSupport(VkPhysicalDevice dev
 }
 
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
-	std::cout << "available formats " << std::endl;
-	for (const VkSurfaceFormatKHR& availableFormat : availableFormats) {
-		std::cout << availableFormat.format << std::endl;
-	}
 	for (const VkSurfaceFormatKHR& availableFormat : availableFormats) {
 
 		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -1430,7 +1426,7 @@ void VulkanSystem::createGraphicsPipelines() {
 		}
 		createGraphicsPipeline("/vertShadow.spv", "/fragShadow.spv", graphicsPipelineShadows[i], pipelineLayoutShadows[i], 0, shadowPasses[i]);
 
-		createGraphicsPipeline("/vertShadowInst.spv", "/fragShadowInst.spv", graphicsInstPipelineShadows[i], pipelineLayoutShadows[i],0, shadowPasses[i]);
+		createGraphicsPipeline("/vertShadowInst.spv", "/fragShadow.spv", graphicsInstPipelineShadows[i], pipelineLayoutShadows[i],0, shadowPasses[i]);
 
 	}
 
@@ -1466,11 +1462,11 @@ void VulkanSystem::createGraphicsPipelines() {
 	if (rawEnvironment.has_value()) {
 		createGraphicsPipeline("/vertEnv.spv", "/fragEnv.spv", graphicsPipeline, pipelineLayoutHDR, subpassCount-2,renderPass);
 
-		createGraphicsPipeline("/vertInstEnv.spv", "/fragInstEnv.spv", graphicsInstPipeline, pipelineLayoutHDR, 0, renderPass);
+		createGraphicsPipeline("/vertInstEnv.spv", "/fragEnv.spv", graphicsInstPipeline, pipelineLayoutHDR, 0, renderPass);
 	}
 	else {
 		createGraphicsPipeline("/vert.spv", "/frag.spv", graphicsPipeline, pipelineLayoutHDR, 0, renderPass);
-		createGraphicsPipeline("/vertInst.spv", "/fragInst.spv", graphicsInstPipeline, pipelineLayoutHDR, 0, renderPass);
+		createGraphicsPipeline("/vertInst.spv", "/frag.spv", graphicsInstPipeline, pipelineLayoutHDR, 0, renderPass);
 	}
 	createGraphicsPipeline("/vertQuad.spv", "/fragFinal.spv", graphicsPipelineFinal, pipelineLayoutFinal, 1, renderPass);
 }
