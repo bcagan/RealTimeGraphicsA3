@@ -134,7 +134,7 @@ void Mode::mainLoop(SceneGraph* graph) {
 				float moveFactor = 10;
 				yawDebug += delta * moveStatus.mouseDelta.first * moveFactor;
 				pitchDebug -= delta * moveStatus.mouseDelta.second * moveFactor;
-				if (pitchDebug > 89.9) pitchDebug = 89.9; if (pitchDebug < -89.9) pitchDebug = -89.9;
+				if (pitchDebug > 179.9) pitchDebug = 179.9; if (pitchDebug < -179.9) pitchDebug = -179.9;
 				if (yawDebug > 89.9) yawDebug = 89.9; if (yawDebug < -89.9) yawDebug = -89.9;
 				float dirX = cos(radians(yawDebug)) * cos(radians(pitchDebug));
 				float dirY = sin(radians(pitchDebug));

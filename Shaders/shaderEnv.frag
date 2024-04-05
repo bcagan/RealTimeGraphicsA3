@@ -153,11 +153,7 @@ void main() {
 			albedo = vec3(material.albedor,material.albedog,material.albedob);
 		}
 		else{
-			vec4 rgbe = texture(cubes[material.albedoTexture], useNormal);
-			int e = int(rgbe.w*255);
-			albedo.x = ldexp((255*rgbe.x + 0.5)/256,e - 128);
-			albedo.y = ldexp((255*rgbe.y + 0.5)/256,e - 128);
-			albedo.z = ldexp((255*rgbe.z + 0.5)/256,e - 128);
+			albedo = texture(textures[material.albedoTexture], texcoord).rgb;
 		}
 		outColor = vec4((directLight) * albedo * fragColor, 1.0);
 	}

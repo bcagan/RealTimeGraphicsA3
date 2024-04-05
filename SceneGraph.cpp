@@ -680,7 +680,7 @@ DrawList SceneGraph::navigateSceneGraph(bool verbose, int poolSize) {
 		mat44<float> transform = list.worldToLights[i];
 		DrawLight light = list.lights[i];
 		mat44<float> persp = mat44<float>::perspective(light.fov, 1, 0.01, 1000);
-		list.worldToLightsPersp.push_back(persp* transform);
+		list.worldToLightsPersp.push_back(persp*transform);
 	}
 
 	if (list.lights.size() == 0) {

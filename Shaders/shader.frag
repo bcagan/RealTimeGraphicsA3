@@ -155,11 +155,7 @@ void main() {
 			albedo = vec3(material.albedor,material.albedog,material.albedob);
 		}
 		else{
-			vec4 rgbe = texture(cubes[material.albedoTexture], useNormal);
-			int e = int(rgbe.w*255);
-			albedo.x = rgbe.x;//ldexp((255*rgbe.x + 0.5)/256,e - 128);
-			albedo.y = rgbe.y;//ldexp((255*rgbe.y + 0.5)/256,e - 128);
-			albedo.z = rgbe.x;//ldexp((255*rgbe.z + 0.5)/256,e - 128);
+			albedo = texture(textures[material.albedoTexture], texcoord).rgb;
 		}
 		outColor = vec4((directLight) * albedo * fragColor, 1.0);
 	}
@@ -255,7 +251,7 @@ void main() {
 		else{
 			albedo = texture(textures[material.albedoTexture], texcoord).rgb;
 		}
-		outColor = vec4(albedo + directLight,1);
+		outColor = vec4(albedo + directLight * fragColor,1);
 	}
 	else{
 	//None and simple - also currently PBR

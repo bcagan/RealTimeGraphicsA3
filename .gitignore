@@ -18,3 +18,8 @@ cube/.vs/cube/v17/.suo
 *.ipdb
 *.enc
 *.tmp
+*.docx
+*.thmx
+*.docx
+/report
+*.mp4

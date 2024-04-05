@@ -81,7 +81,7 @@
 	"tint":[0.0, 0.0, 1.0],
 	"spot":{
 		"radius":0.5,
-		"power":50.0,
+		"power":100.0,
 		"fov":0.3,
 		"blend":0.2,
 		"limit":11.0
